@@ -1,10 +1,11 @@
 {
   "name": "dsh-genshin-lisa-notice",
-  "description": "完成音频提醒：每次执行完成播放丽莎语音提醒 / Play a Genshin Lisa voice alert whenever an execution completes.",
+  "description": "每次执行完成播放原神·丽莎语音提醒 / A DeepSeek Harness plugin that plays a Genshin Impact Lisa voice alert whenever an execution completes.",
   "version": "0.1.0",
   "type": "module",
   "main": "lib/index.js",
   "license": "MIT",
+  "homepage": "https://github.com/EagleClark/dsh-genshin-lisa-notice",
   "keywords": [
     "deepseek",
     "harness",
