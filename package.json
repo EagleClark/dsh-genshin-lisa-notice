@@ -1,0 +1,50 @@
+{
+  "name": "dsh-genshin-lisa-notice",
+  "description": "完成音频提醒：每次执行完成播放丽莎语音提醒 / Play a Genshin Lisa voice alert whenever an execution completes.",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "license": "MIT",
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "dsh-plugin",
+    "notice",
+    "alert",
+    "audio",
+    "genshin"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EagleClark/dsh-genshin-lisa-notice"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ],
+      "platform": "web"
+    }
+  },
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./client/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "client",
+    "assets",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1"
+  }
+}
