@@ -3,14 +3,21 @@
 DeepSeek Harness 插件：**每次执行完成播放音频提醒**，默认音频为**原神·丽莎**的语音；agent 向你提问、等待输入时也会提醒。  
 A DeepSeek Harness plugin that **plays an audio alert when an execution completes — or when the agent asks for your input**; the default asset is a Genshin Impact Lisa voice line.
 
+## 关于名字 / About the name
+
+插件名叫 `dsh-genshin-lisa-notice`（即 lisa-notice）。**最初只是想用原神·丽莎的语音做个单纯的"执行完成提醒"**，所以按角色名（Lisa）起了名。后来一个版本一个版本地迭代，功能越来越多：加了交互提醒、配置文件、下拉选择内置语音库、自定义音频上传……但**懒得改名字了**，就一直沿用至今。名字里的 `lisa` 更多是个"起源彩蛋"，并不代表现在只支持丽莎这一个语音。
+
+The package is named `dsh-genshin-lisa-notice` (i.e. `lisa-notice`). It **started as a plain "execution-complete reminder" using Genshin Impact Lisa's voice**, named after that character. Over many releases the scope grew — interaction alerts, a settings page, a built-in voice library with a dropdown, custom audio upload — but the name stuck because **renaming it was never worth the churn**. The `lisa` in the name is now more of an origin easter egg than a statement that only Lisa's voice is supported.
+
 ## 功能 / Features
 
 - 任意会话的执行完成（回合即将关闭）时，在浏览器中播放一次音频提醒
 - agent 调用提问工具（`ask_user_question`）向你请求输入时，同样播放提醒
-- 两种提醒**可分别配置音频**：默认完成为 `assets/lisa-notice.mp3`（丽莎），交互为 `assets/luoshaliya-jiaban.mp3`（罗莎莉亚·加班）；可在 **设置 → 插件 → 配置** 里填写自定义 mp3 路径，也可一键恢复默认
+- 两种提醒**可分别配置语音**：内置语音库（完成默认"丽莎姐姐聊聊天"、交互默认"罗莎莉亚不加班"，另有兹白·无须言语 / 罗莎莉亚·还不走吗 / 胡桃·晒太阳月亮歌）在 **设置 → 插件 → 配置** 里**下拉选择**，也可一键恢复默认
+- 也支持**上传自定义音频**（显示原文件名），并可随时回退到内置语音
 - 多次完成会合并为一次播放，避免刷屏
 - 音频素材随包分发，无需外部路径依赖
-- Plays an alert per completed execution (any session) and when the agent asks for your input; bursts coalesce into a single playback. Completion and interaction sounds are configurable separately (defaults: `lisa-notice.mp3` / `luoshaliya-jiaban.mp3`); the audio assets ship inside the package.
+- Plays an alert per completed execution (any session) and when the agent asks for your input; bursts coalesce into a single playback. Completion and interaction voices are selectable separately from a built-in library (defaults: "丽莎姐姐聊聊天" / "罗莎莉亚不加班") via a dropdown, plus custom upload; the audio assets ship inside the package.
 
 ## 安装 / Install
 
