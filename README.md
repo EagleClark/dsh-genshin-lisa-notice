@@ -7,10 +7,10 @@ A DeepSeek Harness plugin that **plays an audio alert when an execution complete
 
 - 任意会话的执行完成（回合即将关闭）时，在浏览器中播放一次音频提醒
 - agent 调用提问工具（`ask_user_question`）向你请求输入时，同样播放提醒
-- 两种提醒可分别配置音频：完成用 `assets/lisa-notice.mp3`，交互用 `assets/interaction.mp3`（未提供时交互复用完成音频）
+- 两种提醒**可分别配置音频**：默认完成为 `assets/lisa-notice.mp3`（丽莎），交互为 `assets/luoshaliya-jiaban.mp3`（罗莎莉亚·加班）；可在 **设置 → 插件 → 配置** 里填写自定义 mp3 路径，也可一键恢复默认
 - 多次完成会合并为一次播放，避免刷屏
 - 音频素材随包分发，无需外部路径依赖
-- Plays an alert per completed execution (any session) and when the agent asks for your input; bursts coalesce into a single playback. Completion and interaction sounds are configurable separately (`lisa-notice.mp3` / `interaction.mp3`); the audio assets ship inside the package.
+- Plays an alert per completed execution (any session) and when the agent asks for your input; bursts coalesce into a single playback. Completion and interaction sounds are configurable separately (defaults: `lisa-notice.mp3` / `luoshaliya-jiaban.mp3`); the audio assets ship inside the package.
 
 ## 安装 / Install
 
@@ -28,15 +28,21 @@ dsh plugin --profile web add github:EagleClark/dsh-genshin-lisa-notice
 
 | 端 | 职责 |
 | --- | --- |
-| Host (`lib/index.js`) | 监听 `agent/turn-stopping`（执行完成）与 `tools/pre-execute` 中的 `ask_user_question`（提问**分发时**触发，早于提问 UI 出现）；事件沿作用域链向上流动，根级插件可收到所有会话的事件。通过 `webServer` 提供 `/dsh-genshin-lisa-notice/alert.mp3`、`/interaction.mp3`（可选）与 `/dsh-genshin-lisa-notice/poll`（返回两类计数并清零） |
-| Client (`client/client.js`) | 每 700ms 轮询 poll 端点，分别对完成/交互计数 `new Audio(...).play()`；首个用户手势解锁自动播放，被拦截的提醒在点击/按键时补播 |
+| Host (`lib/index.js`) | 监听 `agent/turn-stopping`（执行完成）与 `tools/pre-execute` 中的 `ask_user_question`（提问**分发时**触发，早于提问 UI 出现）；事件沿作用域链向上流动，根级插件可收到所有会话的事件。注册 `dsh-genshin-lisa-notice` 设置命名空间（自定义音频路径，实时生效）。通过 `webServer` 提供 `/dsh-genshin-lisa-notice/alert.mp3`、`/interaction.mp3`（按配置读取音频）与 `/dsh-genshin-lisa-notice/poll`（返回两类计数并清零） |
+| Client (`client/client.js`) | 每 700ms 轮询 poll 端点，分别对完成/交互计数 `new Audio(...).play()`；首个用户手势解锁自动播放，被拦截的提醒在点击/按键时补播。注册 **设置 → 插件 → 配置** 卡片（自定义语音 + 恢复默认） |
+
+## 配置 / Configuration
+
+打开 **设置 → 插件 → 配置**，找到 `dsh-genshin-lisa-notice` 卡片：
+
+- **完成提醒音频**：留空使用默认 `assets/lisa-notice.mp3`；填 mp3 文件绝对路径即用自定义语音
+- **交互提醒音频**：留空使用默认 `assets/luoshaliya-jiaban.mp3`；填 mp3 文件绝对路径即用自定义语音
+- 点击 **保存** 立即生效（无需重启）；点击 **恢复默认** 清除自定义配置
 
 ## 更换音频 / Swap the audio
 
-- 完成提醒：替换 `assets/lisa-notice.mp3`（保持文件名）
-- 交互提醒（可选）：新增 `assets/interaction.mp3`；不提供时交互提醒复用完成音频
-
-改完后重新提交/发布即可。
+- 改默认素材：直接替换 `assets/lisa-notice.mp3` / `assets/luoshaliya-jiaban.mp3`（保持文件名）后重新提交/发布
+- 只改本机：用上面的配置界面填自定义 mp3 路径即可，无需改包
 
 ## 发布 / Publish
 
