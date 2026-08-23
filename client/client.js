@@ -286,7 +286,7 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       var settingsScope = ctx.settingsScope.bind({ namespace: SETTINGS_NS });
       slots.inject("settings.plugin.item", function () {
         return slots.register(
-          { name: "settings.plugin.item", id: "dsh-genshin-lisa-notice", order: 30 },
+          { name: "settings.plugin.item", key: SETTINGS_NS },
           function (props) {
             return React.createElement(LisaNoticeCard, Object.assign({}, props, { scope: settingsScope }));
           },
