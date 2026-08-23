@@ -11,26 +11,43 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
 
   var POLL_INTERVAL_MS = 700;
   var POLL_PATH = "/dsh-genshin-lisa-notice/poll";
-  var AUDIO_PATH = "/dsh-genshin-lisa-notice/alert.mp3";
+  var COMPLETION_AUDIO_PATH = "/dsh-genshin-lisa-notice/alert.mp3";
+  var INTERACTION_AUDIO_PATH = "/dsh-genshin-lisa-notice/interaction.mp3";
 
   var name = "dsh-genshin-lisa-notice";
   var inject = ["timer"];
 
   function apply(ctx) {
-    // Reused Audio element; `false` means initialization already failed.
-    var audio = null;
+    // Reused Audio elements; `false` means initialization already failed.
+    var completionAudio = null;
+    var interactionAudio = null;
 
-    async function ensureAudio() {
-      if (audio) return audio;
+    function pageOrigin() {
+      return typeof window !== "undefined" && window.location ? window.location.origin : "";
+    }
+
+    async function ensureCompletion() {
+      if (completionAudio) return completionAudio;
       try {
-        var origin = typeof window !== "undefined" && window.location ? window.location.origin : "";
-        audio = new Audio(origin + AUDIO_PATH);
-        audio.preload = "auto";
+        completionAudio = new Audio(pageOrigin() + COMPLETION_AUDIO_PATH);
+        completionAudio.preload = "auto";
       } catch (error) {
-        console.error("[dsh-genshin-lisa-notice] audio setup failed:", error);
-        audio = false;
+        console.error("[dsh-genshin-lisa-notice] completion audio setup failed:", error);
+        completionAudio = false;
       }
-      return audio;
+      return completionAudio;
+    }
+
+    async function ensureInteraction() {
+      if (interactionAudio) return interactionAudio;
+      try {
+        interactionAudio = new Audio(pageOrigin() + INTERACTION_AUDIO_PATH);
+        interactionAudio.preload = "auto";
+      } catch (error) {
+        console.error("[dsh-genshin-lisa-notice] interaction audio setup failed:", error);
+        interactionAudio = false;
+      }
+      return interactionAudio;
     }
 
     function play(el) {
@@ -47,15 +64,31 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       }
     }
 
-    // Poll the host completion endpoint; play once per drained burst.
+    // Poll the host endpoints; play once per distinct sound per tick.
     ctx.interval(async function () {
       try {
         var res = await fetch(POLL_PATH, { method: "GET", cache: "no-store" });
         if (!res.ok) return;
         var data = await res.json();
-        if (!data || !data.count) return;
-        var el = await ensureAudio();
-        if (el) play(el);
+        if (!data) return;
+
+        var played = {};
+        if (data.completion > 0) {
+          var el = await ensureCompletion();
+          if (el && !played[COMPLETION_AUDIO_PATH]) {
+            played[COMPLETION_AUDIO_PATH] = true;
+            play(el);
+          }
+        }
+        if (data.interaction > 0) {
+          var el = data.interactionAudio
+            ? await ensureInteraction()
+            : await ensureCompletion();
+          if (el && !played[COMPLETION_AUDIO_PATH] && !played[INTERACTION_AUDIO_PATH]) {
+            played[el === interactionAudio ? INTERACTION_AUDIO_PATH : COMPLETION_AUDIO_PATH] = true;
+            play(el);
+          }
+        }
       } catch (error) {
         // Transient failure (early page load / network jitter): skip this tick.
       }

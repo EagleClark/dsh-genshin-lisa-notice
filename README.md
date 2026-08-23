@@ -1,14 +1,16 @@
 # dsh-genshin-lisa-notice
 
-DeepSeek Harness 插件：**每次执行完成播放音频提醒**，默认音频为**原神·丽莎**的语音。  
-A DeepSeek Harness plugin that **plays an audio alert whenever an execution completes** — the default asset is a Genshin Impact Lisa voice line.
+DeepSeek Harness 插件：**每次执行完成播放音频提醒**，默认音频为**原神·丽莎**的语音；agent 向你提问、等待输入时也会提醒。  
+A DeepSeek Harness plugin that **plays an audio alert when an execution completes — or when the agent asks for your input**; the default asset is a Genshin Impact Lisa voice line.
 
 ## 功能 / Features
 
 - 任意会话的执行完成（回合即将关闭）时，在浏览器中播放一次音频提醒
+- agent 调用提问工具（`ask_user_question`）向你请求输入时，同样播放提醒
+- 两种提醒可分别配置音频：完成用 `assets/lisa-notice.mp3`，交互用 `assets/interaction.mp3`（未提供时交互复用完成音频）
 - 多次完成会合并为一次播放，避免刷屏
 - 音频素材随包分发，无需外部路径依赖
-- Plays one alert per completed execution (any session); bursts coalesce into a single playback. The audio asset ships inside the package — no external path dependency.
+- Plays an alert per completed execution (any session) and when the agent asks for your input; bursts coalesce into a single playback. Completion and interaction sounds are configurable separately (`lisa-notice.mp3` / `interaction.mp3`); the audio assets ship inside the package.
 
 ## 安装 / Install
 
@@ -26,12 +28,15 @@ dsh plugin --profile web add github:EagleClark/dsh-genshin-lisa-notice
 
 | 端 | 职责 |
 | --- | --- |
-| Host (`lib/index.js`) | 监听 `agent/turn-stopping`（事件沿作用域链向上流动，根级插件可收到所有会话的事件）；通过 `webServer` 提供 `/dsh-genshin-lisa-notice/alert.mp3`（读包内 `assets/lisa-notice.mp3`）与 `/dsh-genshin-lisa-notice/poll`（返回待播放计数并清零） |
-| Client (`client/client.js`) | 每 700ms 轮询 poll 端点，拿到计数后 `new Audio(...).play()` |
+| Host (`lib/index.js`) | 监听 `agent/turn-stopping`（执行完成）与 `tools/result` 中的 `ask_user_question`（等待用户输入）；事件沿作用域链向上流动，根级插件可收到所有会话的事件。通过 `webServer` 提供 `/dsh-genshin-lisa-notice/alert.mp3`、`/interaction.mp3`（可选）与 `/dsh-genshin-lisa-notice/poll`（返回两类计数并清零） |
+| Client (`client/client.js`) | 每 700ms 轮询 poll 端点，分别对完成/交互计数 `new Audio(...).play()` |
 
 ## 更换音频 / Swap the audio
 
-直接替换 `assets/lisa-notice.mp3`（保持文件名）后重新提交/发布即可。
+- 完成提醒：替换 `assets/lisa-notice.mp3`（保持文件名）
+- 交互提醒（可选）：新增 `assets/interaction.mp3`；不提供时交互提醒复用完成音频
+
+改完后重新提交/发布即可。
 
 ## 发布 / Publish
 
