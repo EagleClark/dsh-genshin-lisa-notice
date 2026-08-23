@@ -33,16 +33,17 @@ dsh plugin --profile web add github:EagleClark/dsh-genshin-lisa-notice
 
 ## 配置 / Configuration
 
-打开 **设置 → 插件 → 配置**，找到 `dsh-genshin-lisa-notice` 卡片：
+打开 **设置 → 插件 → 配置**，展开 `dsh-genshin-lisa-notice` 卡片（默认折叠）：
 
-- **完成提醒音频**：留空使用默认 `assets/lisa-notice.mp3`；填 mp3 文件绝对路径即用自定义语音
-- **交互提醒音频**：留空使用默认 `assets/luoshaliya-jiaban.mp3`；填 mp3 文件绝对路径即用自定义语音
-- 点击 **保存** 立即生效（无需重启）；点击 **恢复默认** 清除自定义配置
+- **完成提醒音频**：点「选择音频文件」选 mp3 → 点「确认」上传并立即生效；未配置时用默认 `assets/lisa-notice.mp3`
+- **交互提醒音频**：同上，默认 `assets/luoshaliya-jiaban.mp3`
+- 「取消」丢弃未确认的选择；「恢复默认」清除自定义语音，回到包内默认
+- 上传的文件保存在 `$DSH_HOME/data/dsh-genshin-lisa-notice/`
 
 ## 更换音频 / Swap the audio
 
 - 改默认素材：直接替换 `assets/lisa-notice.mp3` / `assets/luoshaliya-jiaban.mp3`（保持文件名）后重新提交/发布
-- 只改本机：用上面的配置界面填自定义 mp3 路径即可，无需改包
+- 只改本机：用上面的配置界面选择音频文件即可，无需改包
 
 ## 发布 / Publish
 
