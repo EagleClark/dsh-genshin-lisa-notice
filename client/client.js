@@ -15,9 +15,11 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
   var POLL_INTERVAL_MS = 700;
   var POLL_PATH = "/dsh-genshin-lisa-notice/poll";
   var UPLOAD_PATH = "/dsh-genshin-lisa-notice/upload";
+  var VOICES_PATH = "/dsh-genshin-lisa-notice/voices";
   var COMPLETION_AUDIO_PATH = "/dsh-genshin-lisa-notice/alert.mp3";
   var INTERACTION_AUDIO_PATH = "/dsh-genshin-lisa-notice/interaction.mp3";
   var SETTINGS_NS = "dsh-genshin-lisa-notice";
+  var CUSTOM_OPTION = "__custom__";
 
   var name = "dsh-genshin-lisa-notice";
   var inject = ["timer", "settingsScope"];
@@ -44,6 +46,8 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
     ".dgn-pick{background:var(--dsw-alias-bg-layer-3);border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);border-radius:8px;padding:5px 14px;font-size:13px;line-height:1.5;cursor:pointer}",
     ".dgn-pick:hover:not(:disabled){color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}",
     ".dgn-pickName{color:var(--dsw-alias-label-tertiary);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+    ".dgn-select{appearance:auto;font:inherit;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-3);border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:5px 8px;font-size:13px;line-height:1.5;max-width:100%}",
+    ".dgn-select:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}",
     ".dgn-footer{border-top:1px solid var(--dsw-alias-border-l2);justify-content:flex-end;align-items:center;gap:8px;padding:12px 16px 8px;display:flex}",
     ".dgn-message{color:var(--dsw-alias-label-secondary);margin:0;font-size:12px;line-height:1.5;flex:1;min-width:0}",
     ".dgn-btn{appearance:none;font:inherit;cursor:pointer;border:1px solid transparent;border-radius:8px;padding:5px 14px;font-size:13px;line-height:1.5}",
@@ -145,15 +149,31 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       var scope = props.scope;
       var [snap, setSnap] = react.useState(function () { return scope.getSnapshot(); });
       var [open, setOpen] = react.useState(false);
+      // Staged edits: per field, either { kind:'builtin', key } or { kind:'file', file }.
       var [pendingCompletion, setPendingCompletion] = react.useState(null);
       var [pendingInteraction, setPendingInteraction] = react.useState(null);
       var [saving, setSaving] = react.useState(false);
       var [message, setMessage] = react.useState("");
+      var [voices, setVoices] = react.useState([]);
+      var [defaults, setDefaults] = react.useState({});
 
       react.useEffect(function () {
         return scope.subscribe(function () {
           setSnap(scope.getSnapshot());
         });
+      }, []);
+
+      react.useEffect(function () {
+        var alive = true;
+        fetch(VOICES_PATH, { cache: "no-store" })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (!alive) return;
+            setVoices(data.voices || []);
+            setDefaults(data.defaults || {});
+          })
+          .catch(function () { /* leave empty; dropdown shows defaults only */ });
+        return function () { alive = false; };
       }, []);
 
       var value = snap.value || {};
@@ -167,24 +187,56 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         return parts[parts.length - 1] || String(path);
       }
 
-      function pick(kind) {
-        var el = document.getElementById(kind === "completion" ? COMPLETION_INPUT_ID : INTERACTION_INPUT_ID);
+      function labelOf(key) {
+        var match = voices.find(function (v) { return v.key === key; });
+        return match ? match.label : key;
+      }
+
+      // Current config's selectable value for a field:
+      // '' (default) -> the field's default key; builtin -> key; custom -> CUSTOM_OPTION.
+      function currentSelect(field) {
+        var raw = String(value[field + "Audio"] || "");
+        if (raw === "") return defaults[field] || "";
+        var isBuiltin = voices.some(function (v) { return v.key === raw; });
+        return isBuiltin ? raw : CUSTOM_OPTION;
+      }
+
+      // Friendly current name: default/builtin -> label; custom -> original filename.
+      function currentName(field) {
+        var raw = String(value[field + "Audio"] || "");
+        if (raw === "") return labelOf(defaults[field] || "");
+        var isBuiltin = voices.some(function (v) { return v.key === raw; });
+        return isBuiltin ? labelOf(raw) : (fileName(raw) || raw);
+      }
+
+      function pick(field) {
+        var el = document.getElementById(field === "completion" ? COMPLETION_INPUT_ID : INTERACTION_INPUT_ID);
         if (el) el.click();
       }
 
-      function onFile(kind, event) {
+      function setPending(field, pendingValue) {
+        if (field === "completion") setPendingCompletion(pendingValue);
+        else setPendingInteraction(pendingValue);
+      }
+
+      function onSelect(field, sel) {
+        if (sel === CUSTOM_OPTION) {
+          pick(field);
+          return;
+        }
+        setPending(field, { kind: "builtin", key: sel });
+      }
+
+      function onFile(field, event) {
         var input = event.target;
         var file = input && input.files && input.files[0] ? input.files[0] : null;
-        if (file) {
-          if (kind === "completion") setPendingCompletion(file);
-          else setPendingInteraction(file);
-        }
+        if (file) setPending(field, { kind: "file", file: file, name: file.name });
         input.value = "";
       }
 
-      async function upload(kind, file) {
+      async function upload(field, file) {
         var buf = await file.arrayBuffer();
-        var res = await fetch(UPLOAD_PATH + "?kind=" + kind, { method: "POST", body: buf });
+        var res = await fetch(UPLOAD_PATH + "?kind=" + field, { method: "POST", body: buf });
         var json = await res.json().catch(function () { return {}; });
         if (!res.ok || !json.ok) {
           throw new Error(json.error || ("HTTP " + res.status));
@@ -192,16 +244,22 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         return json;
       }
 
-      function save() {
+      function apply() {
         setSaving(true);
         setMessage("");
         var work = Promise.resolve();
-        if (pendingCompletion) {
-          work = work.then(function () { return upload("completion", pendingCompletion); });
-        }
-        if (pendingInteraction) {
-          work = work.then(function () { return upload("interaction", pendingInteraction); });
-        }
+        var pendingByField = { completion: pendingCompletion, interaction: pendingInteraction };
+        Object.keys(pendingByField).forEach(function (field) {
+          var p = pendingByField[field];
+          if (!p) return;
+          if (p.kind === "builtin") {
+            var store = p.key === (defaults[field] || "") ? "" : p.key;
+            work = work.then(function () { return scope.set(field + "Audio", store); });
+          } else if (p.kind === "file") {
+            work = work.then(function () { return upload(field, p.file); })
+              .then(function (json) { return scope.set(field + "Audio", json.path); });
+          }
+        });
         work
           .then(function () {
             setPendingCompletion(null);
@@ -233,13 +291,27 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
           .then(function () { setSaving(false); });
       }
 
+      function voiceOptions(field) {
+        var opts = voices.map(function (v) {
+          return react.createElement("option", { key: v.key, value: v.key }, v.label);
+        });
+        opts.push(react.createElement("option", { key: CUSTOM_OPTION, value: CUSTOM_OPTION }, "自定义音频…"));
+        return opts;
+      }
+
+      function fieldStatus(pending, field) {
+        if (pending && pending.kind === "file") return "已选：待保存 " + fileName(pending.name);
+        if (pending && pending.kind === "builtin") return "选择：" + labelOf(pending.key) + "（待确认）";
+        return "当前：" + currentName(field);
+      }
+
       var cardClass = "dgn-card" + (open ? " dgn-card-open" : "");
 
       return react.createElement("li", { className: cardClass },
         react.createElement("button", { className: "dgn-header", onClick: function () { setOpen(!open); } },
           react.createElement("div", { className: "dgn-headText" },
-            react.createElement("div", { className: "dgn-name" }, "dsh-genshin-lisa-notice"),
-            react.createElement("div", { className: "dgn-desc" }, "完成/交互提醒音频 · completion & interaction audio"),
+            react.createElement("div", { className: "dgn-name" }, "Genshin通知提醒"),
+            react.createElement("div", { className: "dgn-desc" }, "执行完成 / 等待输入时的语音通知"),
             overridden ? react.createElement("span", { className: "dgn-badge" }, "已自定义 / customized") : null,
           ),
           react.createElement("svg", {
@@ -255,21 +327,20 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         open ? react.createElement("div", null,
           react.createElement("div", { className: "dgn-body" },
             react.createElement("div", { className: "dgn-field" },
-              react.createElement("div", { className: "dgn-fieldLabel" }, "完成提醒音频"),
-              react.createElement("div", { className: "dgn-fieldStatus" },
-                pendingCompletion
-                  ? "已选：待保存 " + fileName(pendingCompletion.name)
-                  : fileName(value.completionAudio)
-                    ? "当前：自定义 " + fileName(value.completionAudio)
-                    : "当前：默认 lisa-notice.mp3",
-              ),
+              react.createElement("div", { className: "dgn-fieldLabel" }, "完成提醒语音"),
+              react.createElement("div", { className: "dgn-fieldStatus" }, fieldStatus(pendingCompletion, "completion")),
               react.createElement("div", { className: "dgn-btnRow" },
-                react.createElement("button", {
-                  className: "dgn-pick", disabled: !writable || saving,
-                  onClick: function () { pick("completion"); },
-                }, "选择音频文件"),
+                react.createElement("select", {
+                  className: "dgn-select", disabled: !writable || saving,
+                  value: pendingCompletion && pendingCompletion.kind === "builtin"
+                    ? pendingCompletion.key
+                    : (pendingCompletion && pendingCompletion.kind === "file" ? CUSTOM_OPTION : currentSelect("completion")),
+                  onChange: function (e) { onSelect("completion", e.target.value); },
+                }, voiceOptions("completion")),
                 react.createElement("span", { className: "dgn-pickName" },
-                  pendingCompletion ? "" : (fileName(value.completionAudio) || "未配置，使用默认语音"),
+                  (pendingCompletion && pendingCompletion.kind === "file")
+                    ? fileName(pendingCompletion.name)
+                    : (currentSelect("completion") === CUSTOM_OPTION ? (fileName(value.completionAudio) || "") : ""),
                 ),
               ),
               react.createElement("input", {
@@ -279,21 +350,20 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
               }),
             ),
             react.createElement("div", { className: "dgn-field" },
-              react.createElement("div", { className: "dgn-fieldLabel" }, "交互提醒音频"),
-              react.createElement("div", { className: "dgn-fieldStatus" },
-                pendingInteraction
-                  ? "已选：待保存 " + fileName(pendingInteraction.name)
-                  : fileName(value.interactionAudio)
-                    ? "当前：自定义 " + fileName(value.interactionAudio)
-                    : "当前：默认 luoshaliya-jiaban.mp3",
-              ),
+              react.createElement("div", { className: "dgn-fieldLabel" }, "交互提醒语音"),
+              react.createElement("div", { className: "dgn-fieldStatus" }, fieldStatus(pendingInteraction, "interaction")),
               react.createElement("div", { className: "dgn-btnRow" },
-                react.createElement("button", {
-                  className: "dgn-pick", disabled: !writable || saving,
-                  onClick: function () { pick("interaction"); },
-                }, "选择音频文件"),
+                react.createElement("select", {
+                  className: "dgn-select", disabled: !writable || saving,
+                  value: pendingInteraction && pendingInteraction.kind === "builtin"
+                    ? pendingInteraction.key
+                    : (pendingInteraction && pendingInteraction.kind === "file" ? CUSTOM_OPTION : currentSelect("interaction")),
+                  onChange: function (e) { onSelect("interaction", e.target.value); },
+                }, voiceOptions("interaction")),
                 react.createElement("span", { className: "dgn-pickName" },
-                  pendingInteraction ? "" : (fileName(value.interactionAudio) || "未配置，使用默认语音"),
+                  (pendingInteraction && pendingInteraction.kind === "file")
+                    ? fileName(pendingInteraction.name)
+                    : (currentSelect("interaction") === CUSTOM_OPTION ? (fileName(value.interactionAudio) || "") : ""),
                 ),
               ),
               react.createElement("input", {
@@ -303,14 +373,14 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
               }),
             ),
             react.createElement("p", { className: "dgn-fieldHint" },
-              "选择 mp3 文件后点「确认」上传并立即生效；「恢复默认」回到包内语音。",
+              "下拉选择内置语音；选「自定义音频…」可上传自己的 mp3。点「确认」生效，「恢复默认」回到包内语音。",
             ),
           ),
           react.createElement("div", { className: "dgn-footer" },
             message ? react.createElement("span", { className: "dgn-message" }, message) : null,
             react.createElement("button", { className: "dgn-btn dgn-btn-secondary", disabled: !writable || saving, onClick: reset }, "恢复默认"),
             react.createElement("button", { className: "dgn-btn dgn-btn-secondary", disabled: !writable || saving || (!pendingCompletion && !pendingInteraction), onClick: cancel }, "取消"),
-            react.createElement("button", { className: "dgn-btn dgn-btn-primary", disabled: !writable || saving || (!pendingCompletion && !pendingInteraction), onClick: save }, "确认"),
+            react.createElement("button", { className: "dgn-btn dgn-btn-primary", disabled: !writable || saving || (!pendingCompletion && !pendingInteraction), onClick: apply }, "确认"),
           ),
         ) : null,
       );
