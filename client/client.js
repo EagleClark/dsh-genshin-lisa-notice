@@ -48,6 +48,9 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
     ".dgn-pickName{color:var(--dsw-alias-label-tertiary);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
     ".dgn-select{appearance:auto;font:inherit;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-3);border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:5px 8px;font-size:13px;line-height:1.5;max-width:100%}",
     ".dgn-select:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}",
+    ".dgn-toggles{display:flex;flex-direction:column;gap:10px;padding:8px 0 4px}",
+    ".dgn-toggleLabel{display:flex;align-items:center;gap:8px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5;cursor:pointer}",
+    ".dgn-toggleLabel input{accent-color:var(--dsw-alias-brand-primary)}",
     ".dgn-footer{border-top:1px solid var(--dsw-alias-border-l2);justify-content:flex-end;align-items:center;gap:8px;padding:12px 16px 8px;display:flex}",
     ".dgn-message{color:var(--dsw-alias-label-secondary);margin:0;font-size:12px;line-height:1.5;flex:1;min-width:0}",
     ".dgn-btn{appearance:none;font:inherit;cursor:pointer;border:1px solid transparent;border-radius:8px;padding:5px 14px;font-size:13px;line-height:1.5}",
@@ -70,7 +73,40 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       document.head.appendChild(tag);
     }
 
-    // ── audio alert machinery ──────────────────────────────────────────────
+    // Unified settings scope: the alert machinery reads the toggles, the
+    // config card displays/edits them and the voices.
+    var settingsScope = ctx.settingsScope ? ctx.settingsScope.bind({ namespace: SETTINGS_NS }) : null;
+
+    function settingEnabled(key) {
+      if (!settingsScope) return true;
+      try {
+        var s = settingsScope.getSnapshot();
+        var v = s && s.value;
+        if (!v) return true;
+        return v[key] !== false;
+      } catch (error) { return true; }
+    }
+
+    function requestPermission() {
+      try {
+        if (typeof Notification !== "undefined" && Notification.permission === "default" && typeof Notification.requestPermission === "function") {
+          Notification.requestPermission().catch(function () { /* ignore */ });
+        }
+      } catch (error) { /* ignore */ }
+    }
+
+    function notify(title, body) {
+      try {
+        if (typeof Notification === "undefined") return;
+        var text = String(body || "").trim();
+        if (text.length > 200) text = text.slice(0, 200) + "…";
+        new Notification(title, text ? { body: text } : undefined);
+      } catch (error) {
+        console.error("[dsh-genshin-lisa-notice] notification failed:", error);
+      }
+    }
+
+    // ── alert machinery ────────────────────────────────────────────────────
     // Fresh Audio element per alert so it always reflects the current server
     // config: a reused element keeps a stale cached copy, so after the user
     // uploads or resets audio the server serves new bytes at the same URL but
@@ -102,12 +138,13 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       }
     }
 
-    // First real user gesture: mark unlocked, satisfy strict engines
-    // (Safari/iOS) with a silent play inside the handler, and replay any
+    // First real user gesture: mark unlocked, request notification
+    // permission, satisfy strict engines with a silent play, and replay any
     // alert the autoplay policy had blocked.
     function unlock() {
       if (unlocked) return;
       unlocked = true;
+      requestPermission();
       try {
         var seed = new Audio(pageOrigin() + COMPLETION_AUDIO_PATH);
         seed.volume = 0;
@@ -136,8 +173,14 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         if (!res.ok) return;
         var data = await res.json();
         if (!data) return;
-        if (data.completion > 0) playAlert("completion");
-        if (data.interaction > 0) playAlert("interaction");
+        if (data.completion > 0) {
+          if (settingEnabled("soundEnabled")) playAlert("completion");
+          if (settingEnabled("notificationEnabled")) notify("任务完成", data.summary || "");
+        }
+        if (data.interaction > 0) {
+          if (settingEnabled("soundEnabled")) playAlert("interaction");
+          if (settingEnabled("notificationEnabled")) notify("需要你的输入", "");
+        }
       } catch (error) { /* transient */ }
     }, POLL_INTERVAL_MS);
 
@@ -232,6 +275,19 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         var file = input && input.files && input.files[0] ? input.files[0] : null;
         if (file) setPending(field, { kind: "file", file: file, name: file.name });
         input.value = "";
+      }
+
+      function onToggle(key, checked) {
+        // Default is true; turning back on clears the override, turning off stores false.
+        var work = checked ? scope.unset(key) : scope.set(key, false);
+        setSaving(true);
+        setMessage("");
+        work
+          .then(function () { setMessage(checked ? "已开启 / On" : "已关闭 / Off"); })
+          .catch(function (error) {
+            setMessage("保存失败 / Save failed: " + (error && error.message ? error.message : String(error)));
+          })
+          .then(function () { setSaving(false); });
       }
 
       async function upload(field, file) {
@@ -372,6 +428,22 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
                 onChange: function (e) { onFile("interaction", e); },
               }),
             ),
+            react.createElement("div", { className: "dgn-toggles" },
+              react.createElement("label", { className: "dgn-toggleLabel" },
+                react.createElement("input", {
+                  type: "checkbox", checked: value.soundEnabled !== false, disabled: !writable || saving,
+                  onChange: function (e) { onToggle("soundEnabled", e.target.checked); },
+                }),
+                "声音提醒",
+              ),
+              react.createElement("label", { className: "dgn-toggleLabel" },
+                react.createElement("input", {
+                  type: "checkbox", checked: value.notificationEnabled !== false, disabled: !writable || saving,
+                  onChange: function (e) { onToggle("notificationEnabled", e.target.checked); },
+                }),
+                "系统通知",
+              ),
+            ),
             react.createElement("p", { className: "dgn-fieldHint" },
               "下拉选择内置语音；选「自定义音频…」可上传自己的 mp3。点「确认」生效，「恢复默认」回到包内语音。",
             ),
@@ -387,8 +459,7 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
     }
 
     var slots = ctx.get("slots");
-    if (slots !== undefined && ctx.settingsScope !== undefined) {
-      var settingsScope = ctx.settingsScope.bind({ namespace: SETTINGS_NS });
+    if (slots !== undefined && settingsScope !== null) {
       slots.inject("settings.plugin.item", function () {
         return slots.register(
           { name: "settings.plugin.item", key: "dsh-genshin-lisa-notice", order: 30 },
