@@ -2,12 +2,15 @@
 // Format: window.__ModuleLoader__.load({ id, factory }) — the web boot
 // protocol's registration handoff. The factory receives a synchronous
 // require and returns the module's exports; the cordis plugin exported here
-// is { name, inject, apply }.
+// is { name, inject, apply }. Static client bundles resolve React through
+// the factory's require — NOT a global.
 window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require) => {
 
   var module = { exports: {} };
   var exports = module.exports;
   Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+
+  var react = require("react");
 
   var POLL_INTERVAL_MS = 700;
   var POLL_PATH = "/dsh-genshin-lisa-notice/poll";
@@ -195,12 +198,12 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
 
     function LisaNoticeCard(props) {
       var scope = props.scope;
-      var [snap, setSnap] = React.useState(function () { return scope.getSnapshot(); });
-      var [drafts, setDrafts] = React.useState(null);
-      var [saving, setSaving] = React.useState(false);
-      var [message, setMessage] = React.useState("");
+      var [snap, setSnap] = react.useState(function () { return scope.getSnapshot(); });
+      var [drafts, setDrafts] = react.useState(null);
+      var [saving, setSaving] = react.useState(false);
+      var [message, setMessage] = react.useState("");
 
-      React.useEffect(function () {
+      react.useEffect(function () {
         return scope.subscribe(function () {
           var s = scope.getSnapshot();
           setSnap(s);
@@ -219,7 +222,9 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         && (snap.user.completionAudio !== undefined || snap.user.interactionAudio !== undefined);
 
       function edit(field, value) {
-        setDrafts(Object.assign({}, d, (function (o) { o[field] = value; return o; })({})));
+        var next = { completionAudio: d.completionAudio, interactionAudio: d.interactionAudio };
+        next[field] = value;
+        setDrafts(next);
       }
 
       function save() {
@@ -248,35 +253,35 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
           .then(function () { setSaving(false); });
       }
 
-      return React.createElement("li", { style: style.card },
-        React.createElement("div", { style: style.head },
-          React.createElement("div", { style: style.title }, "dsh-genshin-lisa-notice"),
-          React.createElement("div", { style: style.desc }, "完成/交互提醒音频 · completion & interaction audio"),
-          overridden ? React.createElement("span", { style: style.badge }, "已自定义 / customized") : null,
+      return react.createElement("li", { style: style.card },
+        react.createElement("div", { style: style.head },
+          react.createElement("div", { style: style.title }, "dsh-genshin-lisa-notice"),
+          react.createElement("div", { style: style.desc }, "完成/交互提醒音频 · completion & interaction audio"),
+          overridden ? react.createElement("span", { style: style.badge }, "已自定义 / customized") : null,
         ),
-        React.createElement("div", { style: style.body },
-          React.createElement("label", { style: style.field },
-            React.createElement("span", { style: style.label }, "完成提醒音频（留空 = 默认 lisa-notice.mp3）"),
-            React.createElement("input", {
+        react.createElement("div", { style: style.body },
+          react.createElement("label", { style: style.field },
+            react.createElement("span", { style: style.label }, "完成提醒音频（留空 = 默认 lisa-notice.mp3）"),
+            react.createElement("input", {
               style: style.input, type: "text", disabled: !writable || saving,
               value: d.completionAudio, placeholder: "C:\\path\\to\\completion.mp3",
               onChange: function (e) { edit("completionAudio", e.target.value); },
             }),
           ),
-          React.createElement("label", { style: style.field },
-            React.createElement("span", { style: style.label }, "交互提醒音频（留空 = 默认 luoshaliya-jiaban.mp3）"),
-            React.createElement("input", {
+          react.createElement("label", { style: style.field },
+            react.createElement("span", { style: style.label }, "交互提醒音频（留空 = 默认 luoshaliya-jiaban.mp3）"),
+            react.createElement("input", {
               style: style.input, type: "text", disabled: !writable || saving,
               value: d.interactionAudio, placeholder: "C:\\path\\to\\interaction.mp3",
               onChange: function (e) { edit("interactionAudio", e.target.value); },
             }),
           ),
-          React.createElement("p", { style: style.hint }, "自定义语音：填入 mp3 文件的绝对路径，保存后立即生效。"),
+          react.createElement("p", { style: style.hint }, "自定义语音：填入 mp3 文件的绝对路径，保存后立即生效。"),
         ),
-        React.createElement("div", { style: style.footer },
-          message ? React.createElement("span", { style: style.message }, message) : null,
-          React.createElement("button", { style: style.btn, disabled: !writable || saving, onClick: reset }, "恢复默认"),
-          React.createElement("button", { style: style.btnPrimary, disabled: !writable || saving, onClick: save }, "保存"),
+        react.createElement("div", { style: style.footer },
+          message ? react.createElement("span", { style: style.message }, message) : null,
+          react.createElement("button", { style: style.btn, disabled: !writable || saving, onClick: reset }, "恢复默认"),
+          react.createElement("button", { style: style.btnPrimary, disabled: !writable || saving, onClick: save }, "保存"),
         ),
       );
     }
@@ -286,9 +291,9 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       var settingsScope = ctx.settingsScope.bind({ namespace: SETTINGS_NS });
       slots.inject("settings.plugin.item", function () {
         return slots.register(
-          { name: "settings.plugin.item", key: SETTINGS_NS },
+          { name: "settings.plugin.item", key: "dsh-genshin-lisa-notice", order: 30 },
           function (props) {
-            return React.createElement(LisaNoticeCard, Object.assign({}, props, { scope: settingsScope }));
+            return react.createElement(LisaNoticeCard, Object.assign({}, props, { scope: settingsScope }));
           },
         );
       });
