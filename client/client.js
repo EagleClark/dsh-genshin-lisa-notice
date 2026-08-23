@@ -18,47 +18,55 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
   var inject = ["timer"];
 
   function apply(ctx) {
-    // Reused Audio elements; `false` means initialization already failed.
+    // Audio elements are created eagerly so the first user gesture can prime
+    // them; `false` means initialization already failed.
     var completionAudio = null;
     var interactionAudio = null;
-    // Browser autoplay policy: sound play() is rejected until the user has
-    // interacted with the page. `unlocked` flips on the first user gesture;
-    // `pending` counts alerts that were blocked and should replay on that
-    // gesture, so a missed alert is heard the moment the user clicks/types.
-    var unlocked = false;
+    var primed = false;
+    // Browser autoplay policy: a sound play() is rejected until the page has
+    // a real user gesture (some apps cancel keyboard activation, so typing
+    // alone may not unlock). `pending` counts alerts blocked by the policy;
+    // every subsequent gesture retries them, so a missed alert is heard the
+    // moment the user clicks/taps.
     var pending = 0;
 
     function pageOrigin() {
       return typeof window !== "undefined" && window.location ? window.location.origin : "";
     }
 
-    async function ensureCompletion() {
-      if (completionAudio) return completionAudio;
-      try {
-        completionAudio = new Audio(pageOrigin() + COMPLETION_AUDIO_PATH);
-        completionAudio.preload = "auto";
-      } catch (error) {
-        console.error("[dsh-genshin-lisa-notice] completion audio setup failed:", error);
-        completionAudio = false;
+    function makeAudio(path) {
+      var el = new Audio(pageOrigin() + path);
+      el.preload = "auto";
+      return el;
+    }
+
+    function ensureCompletion() {
+      if (completionAudio === null) {
+        try {
+          completionAudio = makeAudio(COMPLETION_AUDIO_PATH);
+        } catch (error) {
+          console.error("[dsh-genshin-lisa-notice] completion audio setup failed:", error);
+          completionAudio = false;
+        }
       }
       return completionAudio;
     }
 
-    async function ensureInteraction() {
-      if (interactionAudio) return interactionAudio;
-      try {
-        interactionAudio = new Audio(pageOrigin() + INTERACTION_AUDIO_PATH);
-        interactionAudio.preload = "auto";
-      } catch (error) {
-        console.error("[dsh-genshin-lisa-notice] interaction audio setup failed:", error);
-        interactionAudio = false;
+    function ensureInteraction() {
+      if (interactionAudio === null) {
+        try {
+          interactionAudio = makeAudio(INTERACTION_AUDIO_PATH);
+        } catch (error) {
+          console.error("[dsh-genshin-lisa-notice] interaction audio setup failed:", error);
+          interactionAudio = false;
+        }
       }
       return interactionAudio;
     }
 
     // Prime an element with a silent play so later play() calls are allowed
-    // (Chrome grants autoplay after the first user gesture; some engines need
-    // a play() inside the gesture handler itself).
+    // (Chrome grants autoplay after the first real user gesture; some engines
+    // additionally require a play() inside the gesture handler itself).
     function prime(el) {
       if (!el) return;
       try {
@@ -82,16 +90,17 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
     function flushPending() {
       if (pending <= 0) return;
       pending = 0;
-      ensureCompletion().then(function (el) {
-        if (el) play(el);
-      });
+      var el = ensureCompletion();
+      if (el) play(el);
     }
 
+    // Runs on every user gesture; harmless when there is nothing to do.
     function unlock() {
-      if (unlocked) return;
-      unlocked = true;
-      prime(completionAudio);
-      prime(interactionAudio);
+      if (!primed) {
+        primed = true;
+        prime(ensureCompletion());
+        prime(ensureInteraction());
+      }
       flushPending();
     }
 
@@ -129,7 +138,7 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
 
         var played = {};
         if (data.completion > 0) {
-          var el = await ensureCompletion();
+          var el = ensureCompletion();
           if (el && !played[COMPLETION_AUDIO_PATH]) {
             played[COMPLETION_AUDIO_PATH] = true;
             play(el);
@@ -137,8 +146,8 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         }
         if (data.interaction > 0) {
           var el = data.interactionAudio
-            ? await ensureInteraction()
-            : await ensureCompletion();
+            ? ensureInteraction()
+            : ensureCompletion();
           if (el && !played[COMPLETION_AUDIO_PATH] && !played[INTERACTION_AUDIO_PATH]) {
             played[el === interactionAudio ? INTERACTION_AUDIO_PATH : COMPLETION_AUDIO_PATH] = true;
             play(el);
