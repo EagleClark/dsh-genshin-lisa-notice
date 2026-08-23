@@ -28,8 +28,8 @@ dsh plugin --profile web add github:EagleClark/dsh-genshin-lisa-notice
 
 | 端 | 职责 |
 | --- | --- |
-| Host (`lib/index.js`) | 监听 `agent/turn-stopping`（执行完成）与 `tools/result` 中的 `ask_user_question`（等待用户输入）；事件沿作用域链向上流动，根级插件可收到所有会话的事件。通过 `webServer` 提供 `/dsh-genshin-lisa-notice/alert.mp3`、`/interaction.mp3`（可选）与 `/dsh-genshin-lisa-notice/poll`（返回两类计数并清零） |
-| Client (`client/client.js`) | 每 700ms 轮询 poll 端点，分别对完成/交互计数 `new Audio(...).play()` |
+| Host (`lib/index.js`) | 监听 `agent/turn-stopping`（执行完成）与 `tools/pre-execute` 中的 `ask_user_question`（提问**分发时**触发，早于提问 UI 出现）；事件沿作用域链向上流动，根级插件可收到所有会话的事件。通过 `webServer` 提供 `/dsh-genshin-lisa-notice/alert.mp3`、`/interaction.mp3`（可选）与 `/dsh-genshin-lisa-notice/poll`（返回两类计数并清零） |
+| Client (`client/client.js`) | 每 700ms 轮询 poll 端点，分别对完成/交互计数 `new Audio(...).play()`；首个用户手势解锁自动播放，被拦截的提醒在点击/按键时补播 |
 
 ## 更换音频 / Swap the audio
 
