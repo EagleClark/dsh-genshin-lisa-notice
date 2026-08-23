@@ -21,6 +21,12 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
     // Reused Audio elements; `false` means initialization already failed.
     var completionAudio = null;
     var interactionAudio = null;
+    // Browser autoplay policy: sound play() is rejected until the user has
+    // interacted with the page. `unlocked` flips on the first user gesture;
+    // `pending` counts alerts that were blocked and should replay on that
+    // gesture, so a missed alert is heard the moment the user clicks/types.
+    var unlocked = false;
+    var pending = 0;
 
     function pageOrigin() {
       return typeof window !== "undefined" && window.location ? window.location.origin : "";
@@ -50,6 +56,51 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       return interactionAudio;
     }
 
+    // Prime an element with a silent play so later play() calls are allowed
+    // (Chrome grants autoplay after the first user gesture; some engines need
+    // a play() inside the gesture handler itself).
+    function prime(el) {
+      if (!el) return;
+      try {
+        var previousVolume = el.volume;
+        el.volume = 0;
+        var p = el.play();
+        if (p && typeof p.then === "function") {
+          p.then(function () {
+            ctx.timeout(function () {
+              try {
+                el.pause();
+                el.currentTime = 0;
+                el.volume = previousVolume;
+              } catch (error) { /* ignore */ }
+            }, 200);
+          }).catch(function () { /* ignore */ });
+        }
+      } catch (error) { /* ignore */ }
+    }
+
+    function flushPending() {
+      if (pending <= 0) return;
+      pending = 0;
+      ensureCompletion().then(function (el) {
+        if (el) play(el);
+      });
+    }
+
+    function unlock() {
+      if (unlocked) return;
+      unlocked = true;
+      prime(completionAudio);
+      prime(interactionAudio);
+      flushPending();
+    }
+
+    if (typeof window !== "undefined" && window.addEventListener) {
+      window.addEventListener("pointerdown", unlock, { capture: true });
+      window.addEventListener("keydown", unlock, { capture: true });
+      window.addEventListener("touchstart", unlock, { capture: true });
+    }
+
     function play(el) {
       try {
         if (el.currentTime > 0) el.currentTime = 0;
@@ -57,6 +108,10 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         if (p && typeof p.catch === "function") {
           p.catch(function (error) {
             console.error("[dsh-genshin-lisa-notice] play failed:", error);
+            // Blocked by autoplay policy: replay once the user interacts.
+            if (error && error.name === "NotAllowedError") {
+              pending += 1;
+            }
           });
         }
       } catch (error) {
