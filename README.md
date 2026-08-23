@@ -63,9 +63,9 @@ dsh plugin --profile web add github:EagleClark/dsh-genshin-lisa-notice
 
 ## 截图 / Screenshots
 
-> 本仓库暂未内置截图。可在你自己的运行界面（**设置 → 插件 → 配置** 的 **Genshin通知提醒** 卡片）截取，放到 `docs/` 目录，并在下方替换图片路径，或把截图发给我帮你嵌入。
+配置界面（**设置 → 插件 → 配置** 的 **Genshin通知提醒** 卡片，展开状态）：
 
-- 配置界面：`docs/config.png`（展开状态）
+![配置界面：Genshin通知提醒](docs/config.png)
 
 ## 更换音频 / Swap the audio
 
