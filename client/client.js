@@ -67,96 +67,29 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
     }
 
     // ── audio alert machinery ──────────────────────────────────────────────
-    var completionAudio = null;
-    var interactionAudio = null;
-    var primed = false;
+    // Fresh Audio element per alert so it always reflects the current server
+    // config: a reused element keeps a stale cached copy, so after the user
+    // uploads or resets audio the server serves new bytes at the same URL but
+    // the old element would replay its previous buffer. Each play() therefore
+    // creates a new element (responses are no-store, so it refetches).
     var pending = 0;
+    var unlocked = false;
 
     function pageOrigin() {
       return typeof window !== "undefined" && window.location ? window.location.origin : "";
     }
 
-    function makeAudio(path) {
-      var el = new Audio(pageOrigin() + path);
-      el.preload = "auto";
-      return el;
-    }
-
-    function ensureCompletion() {
-      if (completionAudio === null) {
-        try {
-          completionAudio = makeAudio(COMPLETION_AUDIO_PATH);
-        } catch (error) {
-          console.error("[dsh-genshin-lisa-notice] completion audio setup failed:", error);
-          completionAudio = false;
-        }
-      }
-      return completionAudio;
-    }
-
-    function ensureInteraction() {
-      if (interactionAudio === null) {
-        try {
-          interactionAudio = makeAudio(INTERACTION_AUDIO_PATH);
-        } catch (error) {
-          console.error("[dsh-genshin-lisa-notice] interaction audio setup failed:", error);
-          interactionAudio = false;
-        }
-      }
-      return interactionAudio;
-    }
-
-    function prime(el) {
-      if (!el) return;
+    function playAlert(kind) {
       try {
-        var previousVolume = el.volume;
-        el.volume = 0;
-        var p = el.play();
-        if (p && typeof p.then === "function") {
-          p.then(function () {
-            ctx.timeout(function () {
-              try {
-                el.pause();
-                el.currentTime = 0;
-                el.volume = previousVolume;
-              } catch (error) { /* ignore */ }
-            }, 200);
-          }).catch(function () { /* ignore */ });
-        }
-      } catch (error) { /* ignore */ }
-    }
-
-    function flushPending() {
-      if (pending <= 0) return;
-      pending = 0;
-      var el = ensureCompletion();
-      if (el) play(el);
-    }
-
-    function unlock() {
-      if (!primed) {
-        primed = true;
-        prime(ensureCompletion());
-        prime(ensureInteraction());
-      }
-      flushPending();
-    }
-
-    if (typeof window !== "undefined" && window.addEventListener) {
-      window.addEventListener("pointerdown", unlock, { capture: true });
-      window.addEventListener("keydown", unlock, { capture: true });
-      window.addEventListener("touchstart", unlock, { capture: true });
-    }
-
-    function play(el) {
-      try {
-        if (el.currentTime > 0) el.currentTime = 0;
+        var path = kind === "completion" ? COMPLETION_AUDIO_PATH : INTERACTION_AUDIO_PATH;
+        var el = new Audio(pageOrigin() + path);
         var p = el.play();
         if (p && typeof p.catch === "function") {
           p.catch(function (error) {
-            console.error("[dsh-genshin-lisa-notice] play failed:", error);
             if (error && error.name === "NotAllowedError") {
               pending += 1;
+            } else {
+              console.error("[dsh-genshin-lisa-notice] play failed:", error);
             }
           });
         }
@@ -165,20 +98,42 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       }
     }
 
+    // First real user gesture: mark unlocked, satisfy strict engines
+    // (Safari/iOS) with a silent play inside the handler, and replay any
+    // alert the autoplay policy had blocked.
+    function unlock() {
+      if (unlocked) return;
+      unlocked = true;
+      try {
+        var seed = new Audio(pageOrigin() + COMPLETION_AUDIO_PATH);
+        seed.volume = 0;
+        var p = seed.play();
+        if (p && typeof p.then === "function") {
+          p.then(function () {
+            try { seed.pause(); } catch (e) { /* ignore */ }
+          }).catch(function () { /* ignore */ });
+        }
+      } catch (error) { /* ignore */ }
+      if (pending > 0) {
+        pending = 0;
+        playAlert("completion");
+      }
+    }
+
+    if (typeof window !== "undefined" && window.addEventListener) {
+      window.addEventListener("pointerdown", unlock, { capture: true });
+      window.addEventListener("keydown", unlock, { capture: true });
+      window.addEventListener("touchstart", unlock, { capture: true });
+    }
+
     ctx.interval(async function () {
       try {
         var res = await fetch(POLL_PATH, { method: "GET", cache: "no-store" });
         if (!res.ok) return;
         var data = await res.json();
         if (!data) return;
-        if (data.completion > 0) {
-          var el = ensureCompletion();
-          if (el) play(el);
-        }
-        if (data.interaction > 0) {
-          var el = ensureInteraction();
-          if (el) play(el);
-        }
+        if (data.completion > 0) playAlert("completion");
+        if (data.interaction > 0) playAlert("interaction");
       } catch (error) { /* transient */ }
     }, POLL_INTERVAL_MS);
 
