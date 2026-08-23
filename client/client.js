@@ -277,9 +277,13 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         input.value = "";
       }
 
+      // Each toggle stores false when off and clears (unset) when its default;
+      // feishuEnabled defaults to false.
+      var TOGGLE_DEFAULTS = { soundEnabled: true, notificationEnabled: true, feishuEnabled: false };
+
       function onToggle(key, checked) {
-        // Default is true; turning back on clears the override, turning off stores false.
-        var work = checked ? scope.unset(key) : scope.set(key, false);
+        var def = TOGGLE_DEFAULTS[key] === true;
+        var work = (checked === def) ? scope.unset(key) : scope.set(key, checked);
         setSaving(true);
         setMessage("");
         work
@@ -442,6 +446,34 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
                   onChange: function (e) { onToggle("notificationEnabled", e.target.checked); },
                 }),
                 "系统通知",
+              ),
+              react.createElement("label", { className: "dgn-toggleLabel" },
+                react.createElement("input", {
+                  type: "checkbox", checked: value.feishuEnabled === true, disabled: !writable || saving,
+                  onChange: function (e) { onToggle("feishuEnabled", e.target.checked); },
+                }),
+                "飞书通知",
+              ),
+            ),
+            react.createElement("div", { className: "dgn-field" },
+              react.createElement("div", { className: "dgn-fieldLabel" }, "飞书 Webhook 地址"),
+              react.createElement("input", {
+                className: "dgn-select", type: "text", disabled: !writable || saving,
+                defaultValue: (value.feishuWebhook || "").trim(),
+                placeholder: "https://open.feishu.cn/open-apis/bot/v2/hook/…",
+                onBlur: function (e) {
+                  var v = e.target.value.trim();
+                  if (v === (value.feishuWebhook || "").trim()) return;
+                  scope.set("feishuWebhook", v)
+                    .then(function () { setMessage("Webhook 已保存 / Saved"); })
+                    .catch(function (error) {
+                      setMessage("保存失败 / Save failed: " + (error && error.message ? error.message : String(error)));
+                    });
+                },
+                style: { width: "100%", maxWidth: "100%" },
+              }),
+              react.createElement("p", { className: "dgn-fieldHint" },
+                "飞书群机器人 · 自定义机器人 Webhook 地址；开启「飞书通知」后，完成/需要输入时会推送到该群。",
               ),
             ),
             react.createElement("p", { className: "dgn-fieldHint" },

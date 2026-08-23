@@ -11,14 +11,14 @@ The package is named `dsh-genshin-lisa-notice` (i.e. `lisa-notice`). It **starte
 
 ## 功能 / Features
 
-- 任意会话的执行完成（回合即将关闭）时，在浏览器中播放一次音频提醒，并**发送浏览器系统通知（含任务完成摘要）**
-- agent 调用提问工具（`ask_user_question`）向你请求输入时，同样播放提醒并发送通知
-- **声音 / 系统通知** 两种方式默认开启，可在 **设置 → 插件 → 配置** 里分别用**开关**关闭
+- 任意会话的执行完成（回合即将关闭）时，在浏览器中播放一次音频提醒，并**发送浏览器系统通知（含任务完成摘要）**；可选**飞书 webhook 推送**
+- agent 调用提问工具（`ask_user_question`）向你请求输入时，同样播放提醒并发送通知（+ 飞书）
+- **声音 / 系统通知** 两种方式默认开启，可在 **设置 → 插件 → 配置** 里分别用**开关**关闭；**飞书通知**默认关闭，需填 webhook 地址并开启
 - 两种提醒**可分别配置语音**：内置语音库（完成默认"丽莎姐姐聊聊天"、交互默认"罗莎莉亚不加班"，另有兹白·无须言语 / 罗莎莉亚·还不走吗 / 胡桃·晒太阳月亮歌）在 **设置 → 插件 → 配置** 里**下拉选择**，也可一键恢复默认
 - 也支持**上传自定义音频**（显示原文件名），并可随时回退到内置语音
 - 多次完成会合并为一次播放，避免刷屏
 - 音频素材随包分发，无需外部路径依赖
-- Plays an alert per completed execution (any session) and when the agent asks for your input, plus a browser system notification with the task summary. Sound and notification are both on by default and each can be toggled. Completion and interaction voices are selectable separately from a built-in library (defaults: "丽莎姐姐聊聊天" / "罗莎莉亚不加班") via a dropdown, plus custom upload; the audio assets ship inside the package.
+- Plays an alert per completed execution (any session) and when the agent asks for your input, plus a browser system notification with the task summary, and an optional Feishu/Lark webhook push. Sound and system notification are on by default and each can be toggled; the Feishu push is off by default and needs a webhook URL. Completion and interaction voices are selectable separately from a built-in library (defaults: "丽莎姐姐聊聊天" / "罗莎莉亚不加班") via a dropdown, plus custom upload; the audio assets ship inside the package.
 
 ## 安装 / Install
 
