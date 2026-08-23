@@ -22,61 +22,50 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
   var name = "dsh-genshin-lisa-notice";
   var inject = ["timer", "settingsScope"];
 
-  // Theme-aware styles (CSS variables from the dsw alias tokens).
-  var style = {
-    card: {
-      border: "1px solid var(--dsw-alias-border-l2, #333)",
-      background: "var(--dsw-alias-bg-layer-3, #222)",
-      borderRadius: "12px",
-      listStyle: "none",
-      marginBottom: "10px",
-    },
-    header: {
-      appearance: "none", width: "100%", font: "inherit", color: "inherit",
-      cursor: "pointer", background: "transparent", border: "0", borderRadius: "12px",
-      textAlign: "left", display: "flex", alignItems: "center", gap: "12px", padding: "14px 16px",
-    },
-    headText: { flex: 1, minWidth: 0 },
-    title: { fontSize: "15px", fontWeight: 600, color: "var(--dsw-alias-label-primary, #fff)" },
-    desc: { fontSize: "13px", color: "var(--dsw-alias-label-tertiary, #999)", marginTop: "4px" },
-    badge: {
-      display: "inline-block", marginLeft: "8px", fontSize: "11px", whiteSpace: "nowrap",
-      background: "var(--dsw-alias-bg-module-platform, #444)", color: "var(--dsw-alias-label-secondary, #bbb)",
-      borderRadius: "999px", padding: "1px 8px",
-    },
-    chevron: { color: "var(--dsw-alias-label-tertiary, #999)", flex: "none", transition: "transform .16s" },
-    body: { borderTop: "1px solid var(--dsw-alias-border-l2, #333)", margin: "0 16px", padding: "4px 0 8px" },
-    field: { padding: "10px 0" },
-    fieldLabel: { fontSize: "13px", fontWeight: 500, color: "var(--dsw-alias-label-primary, #fff)" },
-    fieldStatus: { fontSize: "12px", color: "var(--dsw-alias-label-secondary, #bbb)", marginTop: "4px" },
-    fieldHint: { fontSize: "12px", color: "var(--dsw-alias-label-tertiary, #999)", marginTop: "2px" },
-    btnRow: { display: "flex", alignItems: "center", gap: "8px", marginTop: "8px" },
-    pickBtn: {
-      appearance: "none", font: "inherit", cursor: "pointer",
-      border: "1px solid var(--dsw-alias-border-l2, #333)", borderRadius: "8px", padding: "5px 14px",
-      fontSize: "13px", background: "var(--dsw-alias-bg-layer-3, #222)",
-      color: "var(--dsw-alias-label-secondary, #bbb)",
-    },
-    pickName: { fontSize: "12px", color: "var(--dsw-alias-label-tertiary, #999)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-    footer: {
-      borderTop: "1px solid var(--dsw-alias-border-l2, #333)", display: "flex",
-      justifyContent: "flex-end", alignItems: "center", gap: "8px", padding: "10px 16px 12px",
-    },
-    message: { color: "var(--dsw-alias-label-secondary, #bbb)", margin: "0", fontSize: "12px", flex: 1 },
-    btnSecondary: {
-      appearance: "none", font: "inherit", cursor: "pointer",
-      border: "1px solid var(--dsw-alias-border-l2, #333)", borderRadius: "8px", padding: "5px 14px",
-      fontSize: "13px", background: "var(--dsw-alias-bg-layer-3, #222)",
-      color: "var(--dsw-alias-label-secondary, #bbb)",
-    },
-    btnPrimary: {
-      appearance: "none", font: "inherit", cursor: "pointer", border: "1px solid transparent",
-      borderRadius: "8px", padding: "5px 14px", fontSize: "13px",
-      background: "var(--dsw-alias-brand-primary, #4a90d9)", color: "var(--dsw-alias-brand-text, #fff)",
-    },
-  };
+  // ── injected stylesheet (class-based, matching the official plugin cards) ──
+  var CARD_CSS = [
+    ".dgn-card{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);border-radius:12px;list-style:none;transition:border-color .16s,background .16s}",
+    ".dgn-card:hover{border-color:var(--dsw-alias-label-dimmed)}",
+    ".dgn-card-open{background:var(--dsw-alias-bg-layer-2);border-color:var(--dsw-alias-label-dimmed)}",
+    ".dgn-header{appearance:none;width:100%;font:inherit;color:inherit;text-align:left;cursor:pointer;background:0 0;border:0;border-radius:12px;align-items:center;gap:12px;padding:14px 16px;display:flex}",
+    ".dgn-header:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}",
+    ".dgn-headText{flex-direction:column;flex:1;gap:4px;min-width:0;display:flex}",
+    ".dgn-name{color:var(--dsw-alias-label-primary);font-size:15px;font-weight:600;line-height:1.4}",
+    ".dgn-desc{color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:1.5}",
+    ".dgn-badge{display:inline-block;background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:1px 8px;font-size:11px;font-weight:500;line-height:17px;white-space:nowrap}",
+    ".dgn-chevron{color:var(--dsw-alias-label-tertiary);flex:none;transition:transform .16s}",
+    ".dgn-chevron-open{transform:rotate(180deg)}",
+    ".dgn-body{border-top:1px solid var(--dsw-alias-border-l2);margin:0 16px;padding-bottom:8px}",
+    ".dgn-field{padding:10px 0}",
+    ".dgn-fieldLabel{color:var(--dsw-alias-label-primary);font-size:13px;font-weight:500;line-height:1.5}",
+    ".dgn-fieldStatus{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;margin-top:4px}",
+    ".dgn-fieldHint{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:1.5;margin:6px 0 0}",
+    ".dgn-btnRow{display:flex;align-items:center;gap:8px;margin-top:8px}",
+    ".dgn-pick{background:var(--dsw-alias-bg-layer-3);border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);border-radius:8px;padding:5px 14px;font-size:13px;line-height:1.5;cursor:pointer}",
+    ".dgn-pick:hover:not(:disabled){color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}",
+    ".dgn-pickName{color:var(--dsw-alias-label-tertiary);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+    ".dgn-footer{border-top:1px solid var(--dsw-alias-border-l2);justify-content:flex-end;align-items:center;gap:8px;padding:12px 16px 8px;display:flex}",
+    ".dgn-message{color:var(--dsw-alias-label-secondary);margin:0;font-size:12px;line-height:1.5;flex:1;min-width:0}",
+    ".dgn-btn{appearance:none;font:inherit;cursor:pointer;border:1px solid transparent;border-radius:8px;padding:5px 14px;font-size:13px;line-height:1.5}",
+    ".dgn-btn-secondary{border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);background:0 0}",
+    ".dgn-btn-secondary:hover:not(:disabled){color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}",
+    ".dgn-btn-primary{background:var(--dsw-alias-label-primary);color:var(--dsw-alias-bg-layer-3)}",
+    ".dgn-btn:disabled{opacity:.4;cursor:default}",
+    ".dgn-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}",
+  ].join("\n");
+
+  var CARD_CSS_TAG = "dsh-genshin-lisa-notice/card.css";
 
   function apply(ctx) {
+    // Inject the stylesheet once per page.
+    if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(CARD_CSS_TAG) + "]") === null) {
+      var tag = document.createElement("style");
+      tag.dataset.plugin = "dsh-genshin-lisa-notice";
+      tag.dataset.pluginCss = CARD_CSS_TAG;
+      tag.textContent = CARD_CSS;
+      document.head.appendChild(tag);
+    }
+
     // ── audio alert machinery ──────────────────────────────────────────────
     var completionAudio = null;
     var interactionAudio = null;
@@ -289,32 +278,42 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
           .then(function () { setSaving(false); });
       }
 
-      return react.createElement("li", { style: style.card },
-        react.createElement("button", { style: style.header, onClick: function () { setOpen(!open); } },
-          react.createElement("div", { style: style.headText },
-            react.createElement("div", { style: style.title }, "dsh-genshin-lisa-notice"),
-            react.createElement("div", { style: style.desc }, "完成/交互提醒音频 · completion & interaction audio"),
-            overridden ? react.createElement("span", { style: style.badge }, "已自定义 / customized") : null,
+      var cardClass = "dgn-card" + (open ? " dgn-card-open" : "");
+
+      return react.createElement("li", { className: cardClass },
+        react.createElement("button", { className: "dgn-header", onClick: function () { setOpen(!open); } },
+          react.createElement("div", { className: "dgn-headText" },
+            react.createElement("div", { className: "dgn-name" }, "dsh-genshin-lisa-notice"),
+            react.createElement("div", { className: "dgn-desc" }, "完成/交互提醒音频 · completion & interaction audio"),
+            overridden ? react.createElement("span", { className: "dgn-badge" }, "已自定义 / customized") : null,
           ),
-          react.createElement("span", { style: style.chevron }, open ? "▾" : "▸"),
+          react.createElement("svg", {
+            className: "dgn-chevron" + (open ? " dgn-chevron-open" : ""),
+            width: 14, height: 14, viewBox: "0 0 14 14", fill: "none",
+          },
+            react.createElement("path", {
+              d: "M3.5 5.25 L7 8.75 L10.5 5.25",
+              stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round",
+            }),
+          ),
         ),
         open ? react.createElement("div", null,
-          react.createElement("div", { style: style.body },
-            react.createElement("div", { style: style.field },
-              react.createElement("div", { style: style.fieldLabel }, "完成提醒音频"),
-              react.createElement("div", { style: style.fieldStatus },
+          react.createElement("div", { className: "dgn-body" },
+            react.createElement("div", { className: "dgn-field" },
+              react.createElement("div", { className: "dgn-fieldLabel" }, "完成提醒音频"),
+              react.createElement("div", { className: "dgn-fieldStatus" },
                 pendingCompletion
                   ? "已选：待保存 " + fileName(pendingCompletion.name)
                   : fileName(value.completionAudio)
                     ? "当前：自定义 " + fileName(value.completionAudio)
                     : "当前：默认 lisa-notice.mp3",
               ),
-              react.createElement("div", { style: style.btnRow },
+              react.createElement("div", { className: "dgn-btnRow" },
                 react.createElement("button", {
-                  style: style.pickBtn, disabled: !writable || saving,
+                  className: "dgn-pick", disabled: !writable || saving,
                   onClick: function () { pick("completion"); },
                 }, "选择音频文件"),
-                react.createElement("span", { style: style.pickName },
+                react.createElement("span", { className: "dgn-pickName" },
                   pendingCompletion ? "" : (fileName(value.completionAudio) || "未配置，使用默认语音"),
                 ),
               ),
@@ -324,21 +323,21 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
                 onChange: function (e) { onFile("completion", e); },
               }),
             ),
-            react.createElement("div", { style: style.field },
-              react.createElement("div", { style: style.fieldLabel }, "交互提醒音频"),
-              react.createElement("div", { style: style.fieldStatus },
+            react.createElement("div", { className: "dgn-field" },
+              react.createElement("div", { className: "dgn-fieldLabel" }, "交互提醒音频"),
+              react.createElement("div", { className: "dgn-fieldStatus" },
                 pendingInteraction
                   ? "已选：待保存 " + fileName(pendingInteraction.name)
                   : fileName(value.interactionAudio)
                     ? "当前：自定义 " + fileName(value.interactionAudio)
                     : "当前：默认 luoshaliya-jiaban.mp3",
               ),
-              react.createElement("div", { style: style.btnRow },
+              react.createElement("div", { className: "dgn-btnRow" },
                 react.createElement("button", {
-                  style: style.pickBtn, disabled: !writable || saving,
+                  className: "dgn-pick", disabled: !writable || saving,
                   onClick: function () { pick("interaction"); },
                 }, "选择音频文件"),
-                react.createElement("span", { style: style.pickName },
+                react.createElement("span", { className: "dgn-pickName" },
                   pendingInteraction ? "" : (fileName(value.interactionAudio) || "未配置，使用默认语音"),
                 ),
               ),
@@ -348,24 +347,15 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
                 onChange: function (e) { onFile("interaction", e); },
               }),
             ),
-            react.createElement("p", { style: style.fieldHint },
+            react.createElement("p", { className: "dgn-fieldHint" },
               "选择 mp3 文件后点「确认」上传并立即生效；「恢复默认」回到包内语音。",
             ),
           ),
-          react.createElement("div", { style: style.footer },
-            message ? react.createElement("span", { style: style.message }, message) : null,
-            react.createElement("button", {
-              style: style.btnSecondary, disabled: !writable || saving,
-              onClick: reset,
-            }, "恢复默认"),
-            react.createElement("button", {
-              style: style.btnSecondary, disabled: !writable || saving || (!pendingCompletion && !pendingInteraction),
-              onClick: cancel,
-            }, "取消"),
-            react.createElement("button", {
-              style: style.btnPrimary, disabled: !writable || saving || (!pendingCompletion && !pendingInteraction),
-              onClick: save,
-            }, "确认"),
+          react.createElement("div", { className: "dgn-footer" },
+            message ? react.createElement("span", { className: "dgn-message" }, message) : null,
+            react.createElement("button", { className: "dgn-btn dgn-btn-secondary", disabled: !writable || saving, onClick: reset }, "恢复默认"),
+            react.createElement("button", { className: "dgn-btn dgn-btn-secondary", disabled: !writable || saving || (!pendingCompletion && !pendingInteraction), onClick: cancel }, "取消"),
+            react.createElement("button", { className: "dgn-btn dgn-btn-primary", disabled: !writable || saving || (!pendingCompletion && !pendingInteraction), onClick: save }, "确认"),
           ),
         ) : null,
       );
