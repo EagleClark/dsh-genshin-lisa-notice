@@ -179,7 +179,7 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         }
         if (data.interaction > 0) {
           if (settingEnabled("soundEnabled")) playAlert("interaction");
-          if (settingEnabled("notificationEnabled")) notify("需要你的输入", "");
+          if (settingEnabled("notificationEnabled")) notify("需要你的输入", data.interactionSummary || "");
         }
       } catch (error) { /* transient */ }
     }, POLL_INTERVAL_MS);
