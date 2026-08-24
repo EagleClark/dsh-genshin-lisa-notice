@@ -99,7 +99,7 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       try {
         if (typeof Notification === "undefined") return;
         var text = String(body || "").trim();
-        if (text.length > 200) text = text.slice(0, 200) + "…";
+        if (text.length > 300) text = text.slice(0, 300) + "…";
         new Notification(title, text ? { body: text } : undefined);
       } catch (error) {
         console.error("[dsh-genshin-lisa-notice] notification failed:", error);
