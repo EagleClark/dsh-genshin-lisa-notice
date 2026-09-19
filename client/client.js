@@ -175,7 +175,12 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         if (!data) return;
         if (data.completion > 0) {
           if (settingEnabled("soundEnabled")) playAlert("completion");
-          if (settingEnabled("notificationEnabled")) notify("任务完成", data.summary || "");
+          if (settingEnabled("notificationEnabled")) {
+            // One notification per completed session, each with its own summary.
+            var list = Array.isArray(data.summaries) ? data.summaries.filter(function (s) { return typeof s === "string"; }) : [];
+            if (list.length === 0) notify("任务完成", "");
+            else for (var i = 0; i < list.length; i++) notify("任务完成", list[i]);
+          }
         }
         if (data.interaction > 0) {
           if (settingEnabled("soundEnabled")) playAlert("interaction");
