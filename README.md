@@ -13,8 +13,8 @@ The package is named `dsh-genshin-lisa-notice` (i.e. `lisa-notice`). It **starte
 
 - 任意会话的执行完成（回合即将关闭）时，在浏览器中播放一次音频提醒，并**发送浏览器系统通知（含任务完成摘要）**；可选**飞书 webhook 推送**
 - agent 调用提问工具（`ask_user_question`）向你请求输入时，同样播放提醒并发送通知（+ 飞书）
-- **声音 / 系统通知** 两种方式默认开启，可在 **设置 → 插件 → 配置** 里分别用**开关**关闭；**飞书通知**默认关闭，需填 webhook 地址并开启
-- 两种提醒**可分别配置语音**：内置语音库（完成默认"丽莎姐姐聊聊天"、交互默认"罗莎莉亚不加班"，另有兹白·无须言语 / 罗莎莉亚·还不走吗 / 胡桃·晒太阳月亮歌）在 **设置 → 插件 → 配置** 里**下拉选择**，也可一键恢复默认
+- **声音 / 系统通知** 两种方式默认开启，可在 **插件 → dsh-genshin-lisa-notice** 的配置卡片里分别用**开关**关闭；**飞书通知**默认关闭，需填 webhook 地址并开启
+- 两种提醒**可分别配置语音**：内置语音库（完成默认"丽莎姐姐聊聊天"、交互默认"罗莎莉亚不加班"，另有兹白·无须言语 / 罗莎莉亚·还不走吗 / 胡桃·晒太阳月亮歌）在配置卡片里**下拉选择**，也可一键恢复默认
 - 也支持**上传自定义音频**（显示原文件名），并可随时回退到内置语音
 - 多次完成会合并为一次播放，避免刷屏
 - 音频素材随包分发，无需外部路径依赖
@@ -32,6 +32,8 @@ dsh plugin --profile web add github:EagleClark/dsh-genshin-lisa-notice
 
 装完**重启 `dsh web`**，刷新页面生效（客户端 bundle 随启动图注入）。
 
+升级到 0.10.0（配置模型迁移到 dsh ≥ 0.1.7-rc.2 的 Config / `configForms`）后，需要**重新执行一次上面的安装命令**再重启——profile 里记录的是安装时的仓库快照。
+
 ## 使用方法 / Usage
 
 **1. 触发提醒** —— 装好后无需任何操作，两种时刻会自动提醒：
@@ -39,7 +41,7 @@ dsh plugin --profile web add github:EagleClark/dsh-genshin-lisa-notice
 - 🏁 **执行完成**：任意会话的回合结束，播放"完成提醒语音" + 系统通知 + 飞书（若开启）
 - 💬 **等待输入**：agent 通过 `ask_user_question` 向你提问时，播放"交互提醒语音" + 系统通知 + 飞书（若开启）
 
-**2. 配置通知** —— 打开 **设置 → 插件 → 配置**，展开 **Genshin通知提醒** 卡片（默认折叠）：
+**2. 配置通知** —— 打开侧边栏的 **插件**，在「已安装」里点开 **dsh-genshin-lisa-notice**，页面里的 **Genshin通知提醒** 就是配置卡片：
 
 - **声音 / 系统通知** 默认开启，**飞书通知** 默认关闭，各自一个**开关**可随时切换
 - 完成/交互各一个**下拉框**，点开可选内置语音（显示友好名）
@@ -52,7 +54,7 @@ dsh plugin --profile web add github:EagleClark/dsh-genshin-lisa-notice
 
 ## 配置 / Configuration
 
-打开 **设置 → 插件 → 配置**，展开 **Genshin通知提醒** 卡片（见下方截图）：
+打开侧边栏的 **插件**，在「已安装」里点开 **dsh-genshin-lisa-notice**，页面里的 **Genshin通知提醒** 即配置卡片（见下方截图）：
 
 - **完成提醒语音**（默认：丽莎姐姐聊聊天）/ **交互提醒语音**（默认：罗莎莉亚不加班）：各一个下拉框，内置语音为：
   - 丽莎姐姐聊聊天
@@ -65,10 +67,13 @@ dsh plugin --profile web add github:EagleClark/dsh-genshin-lisa-notice
 - **飞书 Webhook 地址**：填飞书群自定义机器人 webhook；开启「飞书通知」后，完成/需要输入时会推送到该群
 - 「确认」生效并立即播放；「取消」丢弃未确认选择；「恢复默认」回包内默认
 - 自定义上传文件保存在 `$DSH_HOME/data/dsh-genshin-lisa-notice/`
+- 配置本身写进 **该 profile 的 `cordis.patch.yml`**（`$DSH_HOME/profiles/<profile>/cordis.patch.yml` 里 `dsh-genshin-lisa-notice` 行下的 `config:`），与 dsh ≥ 0.1.7-rc.2 的插件配置模型一致
+
+> 需要 **dsh ≥ 0.1.7-rc.2**：该版本用插件自身的 Config + `ctx.configForms` 取代了旧的 `settingsScope` 设置命名空间。旧版 dsh 上插件会因等待 `settingsScope` 而无法激活。
 
 ## 截图 / Screenshots
 
-配置界面（**设置 → 插件 → 配置** 的 **Genshin通知提醒** 卡片，展开状态）：
+配置界面（**插件 → dsh-genshin-lisa-notice** 页内的 **Genshin通知提醒** 卡片；截图为旧版位置，内容一致）：
 
 ![配置界面：Genshin通知提醒](docs/config.png)
 
@@ -81,8 +86,8 @@ dsh plugin --profile web add github:EagleClark/dsh-genshin-lisa-notice
 
 | 端 | 职责 |
 | --- | --- |
-| Host (`lib/index.js`) | 监听 `agent/turn-stopping`（执行完成）与 `tools/pre-execute` 中的 `ask_user_question`（提问**分发时**触发，早于提问 UI 出现）；事件沿作用域链向上流动，根级插件可收到所有会话的事件。注册 `dsh-genshin-lisa-notice` 设置命名空间（语音 key/路径 + 通知开关 + 飞书 webhook，实时生效）。通过 `webServer` 提供 `/voices`、`/alert.mp3`、`/interaction.mp3`（按配置读取对应音频）与 `/poll`（返回计数 + 完成摘要）；在 `agent/status` idle 时取最后一条助手消息作摘要并发送飞书 webhook |
-| Client (`client/client.js`) | 每 700ms 轮询 `/poll`，分别对完成/交互：**声音**（每次播放新建 `Audio` 元素，反映最新配置）+ **浏览器系统通知**（含摘要）；受「声音/系统通知」开关控制。首个用户手势解锁自动播放、申请通知权限，被拦截的提醒在点击/按键时补播。注册 **设置 → 插件 → 配置** 卡片（语音下拉 + 自定义上传 + 三路通知开关 + 飞书 webhook + 恢复默认） |
+| Host (`lib/index.js`) | 监听 `agent/turn-stopping`（执行完成）与 `tools/pre-execute` 中的 `ask_user_question`（提问**分发时**触发，早于提问 UI 出现）；事件沿作用域链向上流动，根级插件可收到所有会话的事件。导出本插件自己的 `Config`（语音 key/路径 + 通知开关 + 飞书 webhook，全部 `volatile()`，写入即生效、无需重载）。通过 `webServer` 提供 `/voices`、`/alert.mp3`、`/interaction.mp3`（按配置读取对应音频）、`/upload`（存自定义 mp3）与 `/poll`（返回计数 + 完成摘要）；在 `agent/status` idle 时取最后一条助手消息作摘要并发送飞书 webhook |
+| Client (`client/client.js`) | 每 700ms 轮询 `/poll`，分别对完成/交互：**声音**（每次播放新建 `Audio` 元素，反映最新配置）+ **浏览器系统通知**（含摘要）；受「声音/系统通知」开关控制。首个用户手势解锁自动播放、申请通知权限，被拦截的提醒在点击/按键时补播。通过 `ctx.configForms` 绑定本条目，并用 `whileServed` 在 **插件** 页的 `plugins.bundle.config` 位注册配置卡片（语音下拉 + 自定义上传 + 三路通知开关 + 飞书 webhook + 恢复默认），写入按 settings 文档的 revision 栅栏提交 |
 
 ## 发布 / Publish
 

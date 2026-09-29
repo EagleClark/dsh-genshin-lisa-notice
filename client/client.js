@@ -4,6 +4,13 @@
 // require and returns the module's exports; the cordis plugin exported here
 // is { name, inject, apply }. Static client bundles resolve React through
 // the factory's require — NOT a global.
+//
+// Settings: the host half declares this bundle's Config (voice keys/paths,
+// the two notification switches, the Feishu webhook) with every field
+// volatile. This half binds the same entry id through `ctx.configForms` and
+// registers a configuration card into the Plugins page's `plugins.bundle.config`
+// slot while the host serves the entry, so writes ride the settings document's
+// revision fence instead of a private settings namespace.
 window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require) => {
 
   var module = { exports: {} };
@@ -18,26 +25,32 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
   var VOICES_PATH = "/dsh-genshin-lisa-notice/voices";
   var COMPLETION_AUDIO_PATH = "/dsh-genshin-lisa-notice/alert.mp3";
   var INTERACTION_AUDIO_PATH = "/dsh-genshin-lisa-notice/interaction.mp3";
-  var SETTINGS_NS = "dsh-genshin-lisa-notice";
+  // Package name == Loader row id == settings namespace of this bundle.
+  var PKG = "dsh-genshin-lisa-notice";
+  var ENTRY_ID = PKG;
   var CUSTOM_OPTION = "__custom__";
 
-  var name = "dsh-genshin-lisa-notice";
-  var inject = ["timer", "settingsScope"];
+  // Schema defaults, used only when the served base layer does not carry a
+  // field (an entry mounted without the settings provider).
+  var FALLBACK = {
+    completionAudio: "",
+    interactionAudio: "",
+    soundEnabled: true,
+    notificationEnabled: true,
+    feishuEnabled: false,
+    feishuWebhook: "",
+  };
+
+  var name = PKG;
+  var inject = ["timer", "slots", "configForms"];
 
   // ── injected stylesheet (class-based, matching the official plugin cards) ──
   var CARD_CSS = [
-    ".dgn-card{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);border-radius:12px;list-style:none;transition:border-color .16s,background .16s}",
-    ".dgn-card:hover{border-color:var(--dsw-alias-label-dimmed)}",
-    ".dgn-card-open{background:var(--dsw-alias-bg-layer-2);border-color:var(--dsw-alias-label-dimmed)}",
-    ".dgn-header{appearance:none;width:100%;font:inherit;color:inherit;text-align:left;cursor:pointer;background:0 0;border:0;border-radius:12px;align-items:center;gap:12px;padding:14px 16px;display:flex}",
-    ".dgn-header:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}",
-    ".dgn-headText{flex-direction:column;flex:1;gap:4px;min-width:0;display:flex}",
-    ".dgn-name{color:var(--dsw-alias-label-primary);font-size:15px;font-weight:600;line-height:1.4}",
-    ".dgn-desc{color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:1.5}",
-    ".dgn-badge{display:inline-block;background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:1px 8px;font-size:11px;font-weight:500;line-height:17px;white-space:nowrap}",
-    ".dgn-chevron{color:var(--dsw-alias-label-tertiary);flex:none;transition:transform .16s}",
-    ".dgn-chevron-open{transform:rotate(180deg)}",
-    ".dgn-body{border-top:1px solid var(--dsw-alias-border-l2);margin:0 16px;padding-bottom:8px}",
+    ".dgn-card{list-style:none}",
+    ".dgn-title{color:var(--dsw-alias-label-primary);font-size:15px;font-weight:600;line-height:1.4;margin:0}",
+    ".dgn-desc{color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:1.5;margin:4px 0 0}",
+    ".dgn-badge{display:inline-block;background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:1px 8px;font-size:11px;font-weight:500;line-height:17px;white-space:nowrap;margin-left:8px}",
+    ".dgn-body{padding-bottom:8px}",
     ".dgn-field{padding:10px 0}",
     ".dgn-fieldLabel{color:var(--dsw-alias-label-primary);font-size:13px;font-weight:500;line-height:1.5}",
     ".dgn-fieldStatus{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;margin-top:4px}",
@@ -51,7 +64,7 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
     ".dgn-toggles{display:flex;flex-direction:column;gap:10px;padding:8px 0 4px}",
     ".dgn-toggleLabel{display:flex;align-items:center;gap:8px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5;cursor:pointer}",
     ".dgn-toggleLabel input{accent-color:var(--dsw-alias-brand-primary)}",
-    ".dgn-footer{border-top:1px solid var(--dsw-alias-border-l2);justify-content:flex-end;align-items:center;gap:8px;padding:12px 16px 8px;display:flex}",
+    ".dgn-footer{border-top:1px solid var(--dsw-alias-border-l2);justify-content:flex-end;align-items:center;gap:8px;padding:12px 0 8px;display:flex}",
     ".dgn-message{color:var(--dsw-alias-label-secondary);margin:0;font-size:12px;line-height:1.5;flex:1;min-width:0}",
     ".dgn-btn{appearance:none;font:inherit;cursor:pointer;border:1px solid transparent;border-radius:8px;padding:5px 14px;font-size:13px;line-height:1.5}",
     ".dgn-btn-secondary{border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);background:0 0}",
@@ -67,24 +80,28 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
     // Inject the stylesheet once per page.
     if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(CARD_CSS_TAG) + "]") === null) {
       var tag = document.createElement("style");
-      tag.dataset.plugin = "dsh-genshin-lisa-notice";
+      tag.dataset.plugin = PKG;
       tag.dataset.pluginCss = CARD_CSS_TAG;
       tag.textContent = CARD_CSS;
       document.head.appendChild(tag);
     }
 
-    // Unified settings scope: the alert machinery reads the toggles, the
-    // config card displays/edits them and the voices.
-    var settingsScope = ctx.settingsScope ? ctx.settingsScope.bind({ namespace: SETTINGS_NS }) : null;
+    // The shared configuration form of this bundle's own entry. Reads never
+    // block; the form derives its snapshot from the settings mirror.
+    var form = ctx.configForms.get(ENTRY_ID);
+
+    function formValue() {
+      try {
+        var snap = form.getSnapshot();
+        return snap && snap.value !== null && typeof snap.value === "object" ? snap.value : {};
+      } catch (error) {
+        return {};
+      }
+    }
 
     function settingEnabled(key) {
-      if (!settingsScope) return true;
-      try {
-        var s = settingsScope.getSnapshot();
-        var v = s && s.value;
-        if (!v) return true;
-        return v[key] !== false;
-      } catch (error) { return true; }
+      var value = formValue();
+      return value[key] !== false;
     }
 
     function requestPermission() {
@@ -189,25 +206,30 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       } catch (error) { /* transient */ }
     }, POLL_INTERVAL_MS);
 
-    // ── settings card in 设置 → 插件 → 配置 ────────────────────────────────
+    // ── configuration card on the Plugins page ──────────────────────────────
+    // Registered while the host serves this entry, into the bundle-configuration
+    // seat of this bundle's own page (keyed by package name).
     var COMPLETION_INPUT_ID = "dgn-completion-file";
     var INTERACTION_INPUT_ID = "dgn-interaction-file";
 
+    function messageOf(error) {
+      return error && error.message ? error.message : String(error);
+    }
+
     function LisaNoticeCard(props) {
-      var scope = props.scope;
-      var [snap, setSnap] = react.useState(function () { return scope.getSnapshot(); });
-      var [open, setOpen] = react.useState(false);
-      // Staged edits: per field, either { kind:'builtin', key } or { kind:'file', file }.
+      var [snap, setSnap] = react.useState(function () { return form.getSnapshot(); });
+      // Staged edits per audio field: { kind:'builtin', key } or { kind:'file', file, name }.
       var [pendingCompletion, setPendingCompletion] = react.useState(null);
       var [pendingInteraction, setPendingInteraction] = react.useState(null);
+      var [webhookDraft, setWebhookDraft] = react.useState(null);
       var [saving, setSaving] = react.useState(false);
       var [message, setMessage] = react.useState("");
       var [voices, setVoices] = react.useState([]);
       var [defaults, setDefaults] = react.useState({});
 
       react.useEffect(function () {
-        return scope.subscribe(function () {
-          setSnap(scope.getSnapshot());
+        return form.subscribe(function () {
+          setSnap(form.getSnapshot());
         });
       }, []);
 
@@ -220,14 +242,26 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
             setVoices(data.voices || []);
             setDefaults(data.defaults || {});
           })
-          .catch(function () { /* leave empty; dropdown shows defaults only */ });
+          .catch(function () { /* leave empty; the dropdown still offers the custom option */ });
         return function () { alive = false; };
       }, []);
 
-      var value = snap.value || {};
-      var writable = snap.status === "ready" && snap.writable;
-      var overridden = snap.user !== undefined && snap.user !== null
-        && (snap.user.completionAudio !== undefined || snap.user.interactionAudio !== undefined);
+      if (props.view === "summary") {
+        return react.createElement("span", null, "执行完成 / 等待输入时的语音通知");
+      }
+
+      var value = snap.value !== null && typeof snap.value === "object" ? snap.value : {};
+      var user = snap.user !== null && typeof snap.user === "object" ? snap.user : {};
+      var writable = snap.status === "ready" && snap.writable === true;
+      var overridden = user.completionAudio !== undefined || user.interactionAudio !== undefined;
+
+      // Effective value beneath the user layer: the field's composition base
+      // when the deployment resolved one, this bundle's schema default otherwise.
+      function inherited(key) {
+        var base = snap.base;
+        if (base !== null && typeof base === "object" && Object.prototype.hasOwnProperty.call(base, key)) return base[key];
+        return FALLBACK[key];
+      }
 
       function fileName(path) {
         if (!path) return null;
@@ -236,7 +270,7 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       }
 
       function labelOf(key) {
-        var match = voices.find(function (v) { return v.key === key; });
+        var match = voices.filter(function (v) { return v.key === key; })[0];
         return match ? match.label : key;
       }
 
@@ -282,21 +316,27 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         input.value = "";
       }
 
-      // Each toggle stores false when off and clears (unset) when its default;
-      // feishuEnabled defaults to false.
-      var TOGGLE_DEFAULTS = { soundEnabled: true, notificationEnabled: true, feishuEnabled: false };
+      // A toggle stores its value only when it differs from the inherited one;
+      // matching the inherited value clears the override instead.
+      function writeField(key, next) {
+        return next === inherited(key) ? form.unset(key) : form.set(key, next);
+      }
 
-      function onToggle(key, checked) {
-        var def = TOGGLE_DEFAULTS[key] === true;
-        var work = (checked === def) ? scope.unset(key) : scope.set(key, checked);
+      function reportWrite(work, done, failPrefix) {
         setSaving(true);
         setMessage("");
         work
-          .then(function () { setMessage(checked ? "已开启 / On" : "已关闭 / Off"); })
+          .then(function (ok) {
+            setMessage(ok === false ? "部署未接受该值 / Refused" : done);
+          })
           .catch(function (error) {
-            setMessage("保存失败 / Save failed: " + (error && error.message ? error.message : String(error)));
+            setMessage(failPrefix + messageOf(error));
           })
           .then(function () { setSaving(false); });
+      }
+
+      function onToggle(key, checked, labels) {
+        reportWrite(writeField(key, checked), checked ? labels[0] : labels[1], "保存失败 / Save failed: ");
       }
 
       async function upload(field, file) {
@@ -309,30 +349,48 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         return json;
       }
 
-      function apply() {
+      // One atomic write for everything staged on this card: revision-fenced,
+      // validated by the host against the full plugin Config.
+      function applyStaged() {
         setSaving(true);
         setMessage("");
-        var work = Promise.resolve();
+        var ops = [];
         var pendingByField = { completion: pendingCompletion, interaction: pendingInteraction };
-        Object.keys(pendingByField).forEach(function (field) {
+        var work = Promise.resolve();
+        ["completion", "interaction"].forEach(function (field) {
           var p = pendingByField[field];
           if (!p) return;
+          var key = field + "Audio";
           if (p.kind === "builtin") {
-            var store = p.key === (defaults[field] || "") ? "" : p.key;
-            work = work.then(function () { return scope.set(field + "Audio", store); });
-          } else if (p.kind === "file") {
-            work = work.then(function () { return upload(field, p.file); })
-              .then(function (json) { return scope.set(field + "Audio", json.path); });
+            ops.push(p.key === inherited(key) ? { op: "unset", path: [key] } : { op: "set", path: [key], value: p.key });
+            return;
           }
+          work = work
+            .then(function () { return upload(field, p.file); })
+            .then(function (json) {
+              ops.push(json.path === inherited(key) ? { op: "unset", path: [key] } : { op: "set", path: [key], value: json.path });
+            });
         });
+        if (webhookDraft !== null) {
+          var text = String(webhookDraft).trim();
+          ops.push(text === String(inherited("feishuWebhook") || "") ? { op: "unset", path: ["feishuWebhook"] } : { op: "set", path: ["feishuWebhook"], value: text });
+        }
         work
           .then(function () {
+            return ops.length === 0 ? true : form.mutate(ops, snap.revision);
+          })
+          .then(function (ok) {
+            if (ok === false) {
+              setMessage("部署未接受这些值 / Refused");
+              return;
+            }
             setPendingCompletion(null);
             setPendingInteraction(null);
+            setWebhookDraft(null);
             setMessage("已保存 / Saved");
           })
           .catch(function (error) {
-            setMessage("保存失败 / Save failed: " + (error && error.message ? error.message : String(error)));
+            setMessage("保存失败 / Save failed: " + messageOf(error));
           })
           .then(function () { setSaving(false); });
       }
@@ -340,23 +398,19 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       function cancel() {
         setPendingCompletion(null);
         setPendingInteraction(null);
+        setWebhookDraft(null);
         setMessage("");
       }
 
       function reset() {
-        setSaving(true);
-        setMessage("");
-        Promise.resolve()
-          .then(function () { return scope.unset("completionAudio"); })
-          .then(function () { return scope.unset("interactionAudio"); })
-          .then(function () { setMessage("已恢复默认 / Reset to default"); })
-          .catch(function (error) {
-            setMessage("恢复失败 / Reset failed: " + (error && error.message ? error.message : String(error)));
-          })
-          .then(function () { setSaving(false); });
+        reportWrite(
+          form.mutate([{ op: "unset", path: ["completionAudio"] }, { op: "unset", path: ["interactionAudio"] }], snap.revision),
+          "已恢复默认 / Reset to default",
+          "恢复失败 / Reset failed: ",
+        );
       }
 
-      function voiceOptions(field) {
+      function voiceOptions() {
         var opts = voices.map(function (v) {
           return react.createElement("option", { key: v.key, value: v.key }, v.label);
         });
@@ -364,148 +418,138 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         return opts;
       }
 
-      function fieldStatus(pending, field) {
-        if (pending && pending.kind === "file") return "已选：待保存 " + fileName(pending.name);
-        if (pending && pending.kind === "builtin") return "选择：" + labelOf(pending.key) + "（待确认）";
+      function fieldStatus(pendingEdit, field) {
+        if (pendingEdit && pendingEdit.kind === "file") return "已选：待保存 " + fileName(pendingEdit.name);
+        if (pendingEdit && pendingEdit.kind === "builtin") return "选择：" + labelOf(pendingEdit.key) + "（待确认）";
         return "当前：" + currentName(field);
       }
 
-      var cardClass = "dgn-card" + (open ? " dgn-card-open" : "");
-
-      return react.createElement("li", { className: cardClass },
-        react.createElement("button", { className: "dgn-header", onClick: function () { setOpen(!open); } },
-          react.createElement("div", { className: "dgn-headText" },
-            react.createElement("div", { className: "dgn-name" }, "Genshin通知提醒"),
-            react.createElement("div", { className: "dgn-desc" }, "执行完成 / 等待输入时的语音通知"),
-            overridden ? react.createElement("span", { className: "dgn-badge" }, "已自定义 / customized") : null,
+      function audioField(field, label, pendingEdit, inputId) {
+        return react.createElement("div", { className: "dgn-field" },
+          react.createElement("div", { className: "dgn-fieldLabel" }, label),
+          react.createElement("div", { className: "dgn-fieldStatus" }, fieldStatus(pendingEdit, field)),
+          react.createElement("div", { className: "dgn-btnRow" },
+            react.createElement("select", {
+              className: "dgn-select",
+              disabled: !writable || saving,
+              value: pendingEdit && pendingEdit.kind === "builtin"
+                ? pendingEdit.key
+                : (pendingEdit && pendingEdit.kind === "file" ? CUSTOM_OPTION : currentSelect(field)),
+              onChange: function (e) { onSelect(field, e.target.value); },
+            }, voiceOptions()),
+            react.createElement("span", { className: "dgn-pickName" },
+              (pendingEdit && pendingEdit.kind === "file")
+                ? fileName(pendingEdit.name)
+                : (currentSelect(field) === CUSTOM_OPTION ? (fileName(value[field + "Audio"]) || "") : ""),
+            ),
           ),
-          react.createElement("svg", {
-            className: "dgn-chevron" + (open ? " dgn-chevron-open" : ""),
-            width: 14, height: 14, viewBox: "0 0 14 14", fill: "none",
-          },
-            react.createElement("path", {
-              d: "M3.5 5.25 L7 8.75 L10.5 5.25",
-              stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round",
+          react.createElement("input", {
+            id: inputId,
+            type: "file",
+            accept: "audio/*,.mp3",
+            style: { display: "none" },
+            onChange: function (e) { onFile(field, e); },
+          }),
+        );
+      }
+
+      var hasStaged = (pendingCompletion !== null) || (pendingInteraction !== null) || (webhookDraft !== null);
+
+      return react.createElement("div", { className: "dgn-card" },
+        react.createElement("p", { className: "dgn-title" },
+          "Genshin通知提醒",
+          overridden ? react.createElement("span", { className: "dgn-badge" }, "已自定义 / customized") : null,
+        ),
+        react.createElement("p", { className: "dgn-desc" }, "执行完成 / 等待输入时的语音通知"),
+        react.createElement("div", { className: "dgn-body" },
+          audioField("completion", "完成提醒语音", pendingCompletion, COMPLETION_INPUT_ID),
+          audioField("interaction", "交互提醒语音", pendingInteraction, INTERACTION_INPUT_ID),
+          react.createElement("div", { className: "dgn-toggles" },
+            react.createElement("label", { className: "dgn-toggleLabel" },
+              react.createElement("input", {
+                type: "checkbox",
+                checked: value.soundEnabled !== false,
+                disabled: !writable || saving,
+                onChange: function (e) { onToggle("soundEnabled", e.target.checked, ["已开启 / On", "已关闭 / Off"]); },
+              }),
+              "声音提醒",
+            ),
+            react.createElement("label", { className: "dgn-toggleLabel" },
+              react.createElement("input", {
+                type: "checkbox",
+                checked: value.notificationEnabled !== false,
+                disabled: !writable || saving,
+                onChange: function (e) { onToggle("notificationEnabled", e.target.checked, ["已开启 / On", "已关闭 / Off"]); },
+              }),
+              "系统通知",
+            ),
+            react.createElement("label", { className: "dgn-toggleLabel" },
+              react.createElement("input", {
+                type: "checkbox",
+                checked: value.feishuEnabled === true,
+                disabled: !writable || saving,
+                onChange: function (e) { onToggle("feishuEnabled", e.target.checked, ["已开启 / On", "已关闭 / Off"]); },
+              }),
+              "飞书通知",
+            ),
+          ),
+          react.createElement("div", { className: "dgn-field" },
+            react.createElement("div", { className: "dgn-fieldLabel" }, "飞书 Webhook 地址"),
+            react.createElement("input", {
+              className: "dgn-select",
+              type: "text",
+              disabled: !writable || saving,
+              value: webhookDraft === null ? String(value.feishuWebhook || "") : webhookDraft,
+              placeholder: "https://open.feishu.cn/open-apis/bot/v2/hook/…",
+              onChange: function (e) { setWebhookDraft(e.target.value); },
+              style: { width: "100%", maxWidth: "100%" },
             }),
+            react.createElement("p", { className: "dgn-fieldHint" },
+              "飞书群机器人 · 自定义机器人 Webhook 地址；开启「飞书通知」后，完成/需要输入时会推送到该群。",
+            ),
+          ),
+          react.createElement("p", { className: "dgn-fieldHint" },
+            "下拉选择内置语音；选「自定义音频…」可上传自己的 mp3。点「确认」生效，「恢复默认」回到包内语音。",
+          ),
+          writable ? null : react.createElement("p", { className: "dgn-fieldHint" },
+            snap.status === "unavailable"
+              ? "本页面不是 loopback 打开的，配置暂不可写 / Configuration is read-only on this page."
+              : "配置暂不可用，正在读取 / Configuration is not ready yet.",
           ),
         ),
-        open ? react.createElement("div", null,
-          react.createElement("div", { className: "dgn-body" },
-            react.createElement("div", { className: "dgn-field" },
-              react.createElement("div", { className: "dgn-fieldLabel" }, "完成提醒语音"),
-              react.createElement("div", { className: "dgn-fieldStatus" }, fieldStatus(pendingCompletion, "completion")),
-              react.createElement("div", { className: "dgn-btnRow" },
-                react.createElement("select", {
-                  className: "dgn-select", disabled: !writable || saving,
-                  value: pendingCompletion && pendingCompletion.kind === "builtin"
-                    ? pendingCompletion.key
-                    : (pendingCompletion && pendingCompletion.kind === "file" ? CUSTOM_OPTION : currentSelect("completion")),
-                  onChange: function (e) { onSelect("completion", e.target.value); },
-                }, voiceOptions("completion")),
-                react.createElement("span", { className: "dgn-pickName" },
-                  (pendingCompletion && pendingCompletion.kind === "file")
-                    ? fileName(pendingCompletion.name)
-                    : (currentSelect("completion") === CUSTOM_OPTION ? (fileName(value.completionAudio) || "") : ""),
-                ),
-              ),
-              react.createElement("input", {
-                id: COMPLETION_INPUT_ID, type: "file", accept: "audio/*,.mp3",
-                style: { display: "none" },
-                onChange: function (e) { onFile("completion", e); },
-              }),
-            ),
-            react.createElement("div", { className: "dgn-field" },
-              react.createElement("div", { className: "dgn-fieldLabel" }, "交互提醒语音"),
-              react.createElement("div", { className: "dgn-fieldStatus" }, fieldStatus(pendingInteraction, "interaction")),
-              react.createElement("div", { className: "dgn-btnRow" },
-                react.createElement("select", {
-                  className: "dgn-select", disabled: !writable || saving,
-                  value: pendingInteraction && pendingInteraction.kind === "builtin"
-                    ? pendingInteraction.key
-                    : (pendingInteraction && pendingInteraction.kind === "file" ? CUSTOM_OPTION : currentSelect("interaction")),
-                  onChange: function (e) { onSelect("interaction", e.target.value); },
-                }, voiceOptions("interaction")),
-                react.createElement("span", { className: "dgn-pickName" },
-                  (pendingInteraction && pendingInteraction.kind === "file")
-                    ? fileName(pendingInteraction.name)
-                    : (currentSelect("interaction") === CUSTOM_OPTION ? (fileName(value.interactionAudio) || "") : ""),
-                ),
-              ),
-              react.createElement("input", {
-                id: INTERACTION_INPUT_ID, type: "file", accept: "audio/*,.mp3",
-                style: { display: "none" },
-                onChange: function (e) { onFile("interaction", e); },
-              }),
-            ),
-            react.createElement("div", { className: "dgn-toggles" },
-              react.createElement("label", { className: "dgn-toggleLabel" },
-                react.createElement("input", {
-                  type: "checkbox", checked: value.soundEnabled !== false, disabled: !writable || saving,
-                  onChange: function (e) { onToggle("soundEnabled", e.target.checked); },
-                }),
-                "声音提醒",
-              ),
-              react.createElement("label", { className: "dgn-toggleLabel" },
-                react.createElement("input", {
-                  type: "checkbox", checked: value.notificationEnabled !== false, disabled: !writable || saving,
-                  onChange: function (e) { onToggle("notificationEnabled", e.target.checked); },
-                }),
-                "系统通知",
-              ),
-              react.createElement("label", { className: "dgn-toggleLabel" },
-                react.createElement("input", {
-                  type: "checkbox", checked: value.feishuEnabled === true, disabled: !writable || saving,
-                  onChange: function (e) { onToggle("feishuEnabled", e.target.checked); },
-                }),
-                "飞书通知",
-              ),
-            ),
-            react.createElement("div", { className: "dgn-field" },
-              react.createElement("div", { className: "dgn-fieldLabel" }, "飞书 Webhook 地址"),
-              react.createElement("input", {
-                className: "dgn-select", type: "text", disabled: !writable || saving,
-                defaultValue: (value.feishuWebhook || "").trim(),
-                placeholder: "https://open.feishu.cn/open-apis/bot/v2/hook/…",
-                onBlur: function (e) {
-                  var v = e.target.value.trim();
-                  if (v === (value.feishuWebhook || "").trim()) return;
-                  scope.set("feishuWebhook", v)
-                    .then(function () { setMessage("Webhook 已保存 / Saved"); })
-                    .catch(function (error) {
-                      setMessage("保存失败 / Save failed: " + (error && error.message ? error.message : String(error)));
-                    });
-                },
-                style: { width: "100%", maxWidth: "100%" },
-              }),
-              react.createElement("p", { className: "dgn-fieldHint" },
-                "飞书群机器人 · 自定义机器人 Webhook 地址；开启「飞书通知」后，完成/需要输入时会推送到该群。",
-              ),
-            ),
-            react.createElement("p", { className: "dgn-fieldHint" },
-              "下拉选择内置语音；选「自定义音频…」可上传自己的 mp3。点「确认」生效，「恢复默认」回到包内语音。",
-            ),
-          ),
-          react.createElement("div", { className: "dgn-footer" },
-            message ? react.createElement("span", { className: "dgn-message" }, message) : null,
-            react.createElement("button", { className: "dgn-btn dgn-btn-secondary", disabled: !writable || saving, onClick: reset }, "恢复默认"),
-            react.createElement("button", { className: "dgn-btn dgn-btn-secondary", disabled: !writable || saving || (!pendingCompletion && !pendingInteraction), onClick: cancel }, "取消"),
-            react.createElement("button", { className: "dgn-btn dgn-btn-primary", disabled: !writable || saving || (!pendingCompletion && !pendingInteraction), onClick: apply }, "确认"),
-          ),
-        ) : null,
+        react.createElement("div", { className: "dgn-footer" },
+          message ? react.createElement("span", { className: "dgn-message" }, message) : null,
+          react.createElement("button", {
+            className: "dgn-btn dgn-btn-secondary",
+            disabled: !writable || saving,
+            onClick: reset,
+          }, "恢复默认"),
+          react.createElement("button", {
+            className: "dgn-btn dgn-btn-secondary",
+            disabled: !writable || saving || !hasStaged,
+            onClick: cancel,
+          }, "取消"),
+          react.createElement("button", {
+            className: "dgn-btn dgn-btn-primary",
+            disabled: !writable || saving || !hasStaged,
+            onClick: applyStaged,
+          }, "确认"),
+        ),
       );
     }
 
-    var slots = ctx.get("slots");
-    if (slots !== undefined && settingsScope !== null) {
-      slots.inject("settings.plugin.item", function () {
-        return slots.register(
-          { name: "settings.plugin.item", key: "dsh-genshin-lisa-notice", order: 30 },
-          function (props) {
-            return react.createElement(LisaNoticeCard, Object.assign({}, props, { scope: settingsScope }));
-          },
-        );
+    // The card exists while the host serves this entry's namespace: a
+    // deployment that never mounted the host half shows no trace of it.
+    ctx.effect(function () {
+      return ctx.configForms.whileServed([ENTRY_ID], function () {
+        return ctx.slots.inject("plugins.bundle.config", function () {
+          return ctx.slots.register(
+            { name: "plugins.bundle.config", key: PKG, order: 30 },
+            LisaNoticeCard,
+          );
+        });
       });
-    }
+    }, "dsh-genshin-lisa-notice: configuration page");
   }
 
   exports.name = name;
