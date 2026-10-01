@@ -42,7 +42,7 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
   };
 
   var name = PKG;
-  var inject = ["timer", "slots", "configForms"];
+  var inject = ["slots", "configForms"];
 
   // ── injected stylesheet (class-based, matching the official plugin cards) ──
   var CARD_CSS = [
@@ -184,7 +184,10 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       window.addEventListener("touchstart", unlock, { capture: true });
     }
 
-    ctx.interval(async function () {
+    // Poll on a plain browser timer. The newer client no longer ships the
+    // `timer` service, and listing it in `inject` blocks apply() forever, so
+    // neither the card nor the alerts would ever mount.
+    var poll = async function () {
       try {
         var res = await fetch(POLL_PATH, { method: "GET", cache: "no-store" });
         if (!res.ok) return;
@@ -204,7 +207,11 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
           if (settingEnabled("notificationEnabled")) notify("需要你的输入", data.interactionSummary || "");
         }
       } catch (error) { /* transient */ }
-    }, POLL_INTERVAL_MS);
+    };
+    ctx.effect(function () {
+      var id = setInterval(poll, POLL_INTERVAL_MS);
+      return function () { clearInterval(id); };
+    }, "dsh-genshin-lisa-notice: alert polling");
 
     // ── configuration card on the Plugins page ──────────────────────────────
     // Registered while the host serves this entry, into the bundle-configuration
