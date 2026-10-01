@@ -547,16 +547,31 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
 
     // The card exists while the host serves this entry's namespace: a
     // deployment that never mounted the host half shows no trace of it.
+    // Three seats, one per client generation. `slots.inject` waits for a seat
+    // that exists, so only the surfaces this client actually declares mount:
+    //   - `settings.plugins.tab`  a page in the Plugins settings section
+    //   - `plugins.bundle.config` this bundle's page on the plugin manager
+    //   - `settings.plugin.item`  the older plugin-configuration card list
     ctx.effect(function () {
       return ctx.configForms.whileServed([ENTRY_ID], function () {
-        return ctx.slots.inject("plugins.bundle.config", function () {
-          return ctx.slots.register(
-            { name: "plugins.bundle.config", key: PKG, order: 30 },
-            LisaNoticeCard,
-          );
-        });
+        var offs = [];
+        var add = function (seat, options) {
+          try {
+            offs.push(ctx.slots.inject(seat, function () {
+              return ctx.slots.register(options, LisaNoticeCard);
+            }));
+          } catch (error) { /* seat unavailable on this client */ }
+        };
+        add("settings.plugins.tab", { name: "settings.plugins.tab", id: PKG, order: 40, label: "Genshin通知提醒" });
+        add("plugins.bundle.config", { name: "plugins.bundle.config", key: PKG, order: 30 });
+        add("settings.plugin.item", { name: "settings.plugin.item", key: PKG, order: 30 });
+        return function () {
+          for (var i = 0; i < offs.length; i++) {
+            try { offs[i](); } catch (error) { /* ignore */ }
+          }
+        };
       });
-    }, "dsh-genshin-lisa-notice: configuration page");
+    }, "dsh-genshin-lisa-notice: configuration surfaces");
   }
 
   exports.name = name;
