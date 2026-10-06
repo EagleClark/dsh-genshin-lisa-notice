@@ -25,6 +25,7 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
   var VOICES_PATH = "/dsh-genshin-lisa-notice/voices";
   var COMPLETION_AUDIO_PATH = "/dsh-genshin-lisa-notice/alert.mp3";
   var INTERACTION_AUDIO_PATH = "/dsh-genshin-lisa-notice/interaction.mp3";
+  var VOICE_PLAY_PATH = "/dsh-genshin-lisa-notice/voice.mp3";
   // Package name == Loader row id == settings namespace of this bundle.
   var PKG = "dsh-genshin-lisa-notice";
   var ENTRY_ID = PKG;
@@ -431,6 +432,38 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         return "当前：" + currentName(field);
       }
 
+      // Audition whatever this field currently points at — including an
+      // unsaved choice: a staged upload plays straight from the local File
+      // (object URL), a staged built-in plays its packaged route, and anything
+      // else falls back to the saved route (which serves the stored value).
+      function previewAudio(field, pendingEdit) {
+        var url;
+        var objectUrl = null;
+        if (pendingEdit && pendingEdit.kind === "file" && pendingEdit.file) {
+          objectUrl = URL.createObjectURL(pendingEdit.file);
+          url = objectUrl;
+        } else if (pendingEdit && pendingEdit.kind === "builtin" && pendingEdit.key) {
+          url = pageOrigin() + VOICE_PLAY_PATH + "?key=" + encodeURIComponent(pendingEdit.key);
+        } else {
+          url = pageOrigin() + (field === "completion" ? COMPLETION_AUDIO_PATH : INTERACTION_AUDIO_PATH);
+        }
+        try {
+          var el = new Audio(url);
+          var p = el.play();
+          if (p && typeof p.then === "function") {
+            p.then(function () {
+              if (objectUrl) setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 2000);
+            }).catch(function (error) {
+              if (objectUrl) URL.revokeObjectURL(objectUrl);
+              setMessage("试听失败 / Preview failed: " + messageOf(error));
+            });
+          }
+        } catch (error) {
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          setMessage("试听失败 / Preview failed: " + messageOf(error));
+        }
+      }
+
       function audioField(field, label, pendingEdit, inputId) {
         return react.createElement("div", { className: "dgn-field" },
           react.createElement("div", { className: "dgn-fieldLabel" }, label),
@@ -444,6 +477,13 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
                 : (pendingEdit && pendingEdit.kind === "file" ? CUSTOM_OPTION : currentSelect(field)),
               onChange: function (e) { onSelect(field, e.target.value); },
             }, voiceOptions()),
+            react.createElement("button", {
+              className: "dgn-pick",
+              type: "button",
+              disabled: saving,
+              title: "试听当前选择（未保存也可试听）",
+              onClick: function () { previewAudio(field, pendingEdit); },
+            }, "试听"),
             react.createElement("span", { className: "dgn-pickName" },
               (pendingEdit && pendingEdit.kind === "file")
                 ? fileName(pendingEdit.name)
