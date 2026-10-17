@@ -207,6 +207,16 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
           if (settingEnabled("soundEnabled")) playAlert("interaction");
           if (settingEnabled("notificationEnabled")) notify("需要你的输入", data.interactionSummary || "");
         }
+        // Model/network failures (429, 5xx, quota, disconnect): the case where a
+        // turn dies without ever reaching completion.
+        if (data.failure > 0) {
+          if (settingEnabled("soundEnabled")) playAlert("interaction");
+          if (settingEnabled("notificationEnabled")) {
+            var fails = Array.isArray(data.failureSummaries) ? data.failureSummaries.filter(function (s) { return typeof s === "string"; }) : [];
+            if (fails.length === 0) notify("⚠️ 任务失败", "");
+            else for (var j = 0; j < fails.length; j++) notify("⚠️ 任务失败", fails[j]);
+          }
+        }
       } catch (error) { /* transient */ }
     };
     ctx.effect(function () {
