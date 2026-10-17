@@ -47,6 +47,7 @@ dsh plugin --profile web add github:EagleClark/dsh-genshin-lisa-notice
 - 完成/交互各一个**下拉框**，点开可选内置语音（显示友好名）
 - 选「自定义音频…」可上传你自己的 mp3（之后显示原文件名）
 - **飞书 Webhook 地址**：填入飞书群自定义机器人的 webhook 并开启「飞书通知」，即可推送到群
+- 飞书消息是**交互卡片**：顶部彩色标题条（完成绿色 / 提问橙色），任务与结果（或问题）分区展示并以分隔线隔开，底部注脚带插件名 · 会话号 · 时间；正文按 webhook 30KB 体积上限自适应，尽量保留完整内容（卡片被拒时会自动退回纯文本）
 - 点 **确认** 保存并立即生效；**取消** 丢弃未确认的选择；**恢复默认** 一键回到内置默认
 - 配置即时生效，无需重启
 
@@ -88,8 +89,8 @@ dsh plugin --profile web add github:EagleClark/dsh-genshin-lisa-notice
 
 | 端 | 职责 |
 | --- | --- |
-| Host (`lib/index.js`) | 监听 `agent/turn-stopping`（执行完成）与 `tools/pre-execute` 中的 `ask_user_question`（提问**分发时**触发，早于提问 UI 出现）；事件沿作用域链向上流动，根级插件可收到所有会话的事件。导出本插件自己的 `Config`（语音 key/路径 + 通知开关 + 飞书 webhook，全部 `volatile()`，写入即生效、无需重载）。通过 `webServer` 提供 `/voices`、`/alert.mp3`、`/interaction.mp3`（按配置读取对应音频）、`/upload`（存自定义 mp3）与 `/poll`（返回计数 + 完成摘要）；在 `agent/status` idle 时取最后一条助手消息作摘要并发送飞书 webhook |
-| Client (`client/client.js`) | 每 700ms 轮询 `/poll`，分别对完成/交互：**声音**（每次播放新建 `Audio` 元素，反映最新配置）+ **浏览器系统通知**（含摘要）；受「声音/系统通知」开关控制。首个用户手势解锁自动播放、申请通知权限，被拦截的提醒在点击/按键时补播。通过 `ctx.configForms` 绑定本条目，并用 `whileServed` 在 **插件** 页的 `plugins.bundle.config` 位注册配置卡片（语音下拉 + 自定义上传 + 三路通知开关 + 飞书 webhook + 恢复默认），写入按 settings 文档的 revision 栅栏提交 |
+| Host (`lib/index.js`) | 监听 `agent/turn-stopping`（执行完成）与 `tools/pre-execute` 中的 `ask_user_question`（提问**分发时**触发，早于提问 UI 出现）；事件沿作用域链向上流动，根级插件可收到所有会话的事件。导出本插件自己的 `Config`（语音 key/路径 + 通知开关 + 飞书 webhook，全部 `volatile()`，写入即生效、无需重载）。通过 `webServer` 提供 `/voices`、`/voice.mp3`（单条内置语音，供试听）、`/alert.mp3`、`/interaction.mp3`（按配置读取对应音频）、`/upload`（存自定义 mp3）与 `/poll`（返回计数 + 完成摘要）；在 `agent/status` idle 时取最后一条助手消息作摘要并发送飞书**交互卡片** |
+| Client (`client/client.js`) | 每 700ms 轮询 `/poll`，分别对完成/交互：**声音**（每次播放新建 `Audio` 元素，反映最新配置）+ **浏览器系统通知**（含摘要）；受「声音/系统通知」开关控制。首个用户手势解锁自动播放、申请通知权限，被拦截的提醒在点击/按键时补播。通过 `ctx.configForms` 绑定本条目，并用 `whileServed` 把配置卡片注册到三个席位（新版 `settings.plugins.tab` 页 + `plugins.bundle.config` bundle 页，旧版 `settings.plugin.item`），内容为语音下拉 + 试听 + 自定义上传 + 三路通知开关 + 飞书 webhook + 恢复默认，写入按 settings 文档的 revision 栅栏提交 |
 
 ## 发布 / Publish
 
