@@ -23,17 +23,21 @@ The package is named `dsh-genshin-lisa-notice` (i.e. `lisa-notice`). It **starte
 
 ## 安装 / Install
 
-插件已发布在 [EagleClark/dsh-genshin-lisa-notice](https://github.com/EagleClark/dsh-genshin-lisa-notice)，通过 GitHub 安装：
+已同时发布到 npm 与 GitHub，**优先用 npm**（预构建包，无需构建授权、升级更简单）：
+
+```sh
+dsh plugin --profile web add dsh-genshin-lisa-notice
+```
+
+不想经过 npm 也可以从 GitHub 源码安装：
 
 ```sh
 dsh plugin --profile web add github:EagleClark/dsh-genshin-lisa-notice
 ```
 
-（若已发布到 npm，也可 `dsh plugin --profile web add dsh-genshin-lisa-notice`。）
-
 装完**重启 `dsh web`**，刷新页面生效（客户端 bundle 随启动图注入）。
 
-升级到 0.10.0（配置模型迁移到 dsh ≥ 0.1.7-rc.2 的 Config / `configForms`）后，需要**重新执行一次上面的安装命令**再重启——profile 里记录的是安装时的仓库快照。
+升级到 0.10.0 之后（配置模型迁移到 dsh ≥ 0.1.7-rc.2 的 Config / `configForms`），需要**重新执行一次上面的安装命令**再重启——profile 里记录的是安装时的快照。
 
 ## 使用方法 / Usage
 
