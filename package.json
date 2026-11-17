@@ -41,7 +41,8 @@
     "docs",
     "cordis.patch.yml",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "tools"
   ],
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1"
