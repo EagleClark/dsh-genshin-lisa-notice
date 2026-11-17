@@ -373,6 +373,17 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         onText(key, n, done);
       }
 
+      // Credentials commit only when non-empty: tabbing through a field must
+      // never wipe a stored App Secret or chat_id.
+      function onCredentialText(key, raw, done) {
+        var text = String(raw == null ? "" : raw).trim();
+        if (text === "") {
+          setMessage("留空不保存；如需清空请直接编辑 profile 配置 / Empty is ignored");
+          return;
+        }
+        onText(key, text, done);
+      }
+
       async function upload(field, file) {
         var buf = await file.arrayBuffer();
         var res = await fetch(UPLOAD_PATH + "?kind=" + field, { method: "POST", body: buf });
@@ -584,21 +595,21 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
               className: "dgn-select", type: "text", disabled: !writable || saving,
               defaultValue: String(value.feishuAppId || ""),
               placeholder: "App ID（cli_ 开头）",
-              onBlur: function (e) { onText("feishuAppId", e.target.value, "App ID 已保存 / Saved"); },
+              onBlur: function (e) { onCredentialText("feishuAppId", e.target.value, "App ID 已保存 / Saved"); },
               style: { width: "100%", maxWidth: "100%", marginTop: "6px" },
             }),
             react.createElement("input", {
               className: "dgn-select", type: "password", disabled: !writable || saving,
               defaultValue: String(value.feishuAppSecret || ""),
               placeholder: "App Secret",
-              onBlur: function (e) { onText("feishuAppSecret", e.target.value, "App Secret 已保存 / Saved"); },
+              onBlur: function (e) { onCredentialText("feishuAppSecret", e.target.value, "App Secret 已保存 / Saved"); },
               style: { width: "100%", maxWidth: "100%", marginTop: "6px" },
             }),
             react.createElement("input", {
               className: "dgn-select", type: "text", disabled: !writable || saving,
               defaultValue: String(value.feishuChatId || ""),
               placeholder: "群聊 chat_id（oc_ 开头）",
-              onBlur: function (e) { onText("feishuChatId", e.target.value, "chat_id 已保存 / Saved"); },
+              onBlur: function (e) { onCredentialText("feishuChatId", e.target.value, "chat_id 已保存 / Saved"); },
               style: { width: "100%", maxWidth: "100%", marginTop: "6px" },
             }),
             react.createElement("input", {
