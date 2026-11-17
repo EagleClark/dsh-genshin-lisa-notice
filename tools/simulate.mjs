@@ -210,10 +210,30 @@ if (answered.length > 0) {
 }
 console.log('  未误投为普通消息:', delivered.length === beforeDelivered)
 
+// ── phase 5: open question in the waterfall → Feishu reply settles it ────────
+console.log('=== 5. 瀑布回答者（open 状态提问）===')
+const request = {
+  questions: [{ id: 'q2', question: '再选一个？', options: [{ label: '方案 A' }, { label: '方案 B' }] }],
+  agent: { id: SESSION },
+  wait: { callId: 'call_q2' },
+}
+// The DSH UI never answers in this simulation, so only the Feishu reply can win.
+const uiNeverAnswers = new Promise(() => {})
+const handlers = listeners.get('user-questions/request') ?? []
+console.log('  注册了回答者:', handlers.length > 0)
+const raced = handlers[handlers.length - 1](request, () => uiNeverAnswers)
+
+queuedReplies.push({ parentId: sent[sent.length - 1].messageId, text: '方案 B' })
+await wait(4500)
+
+const racedResult = await Promise.race([raced, wait(1500).then(() => null)])
+console.log('  赛跑结果:', JSON.stringify(racedResult))
+console.log('  飞书答案获胜:', racedResult !== null && racedResult.answers[0].selected[0] === '方案 B')
+
 // ── dedupe: nothing is delivered twice ───────────────────────────────────────
 const beforeDedupe = delivered.length
 await wait(2500)
-console.log('=== 5. 去重 ===')
+console.log('=== 6. 去重 ===')
 console.log('  重复投递:', delivered.length > beforeDedupe ? '有 ❌' : '无 ✅')
 
 globalThis.fetch = realFetch
@@ -225,6 +245,8 @@ const pass = cardCall !== undefined
   && answered.length === 1
   && answered[0].callId === 'call_q1'
   && answered[0].answer.answers[0].selected[0] === '方案 B'
+  && racedResult !== null
+  && racedResult.answers[0].selected[0] === '方案 B'
   && delivered.length === beforeDedupe
 console.log('')
 console.log('  状态目录（临时，已隔离）:', process.env.DSH_HOME)
