@@ -14,7 +14,15 @@
  * Run: node tools/simulate.mjs   (needs `npm install` once, for schemastery)
  */
 import { createServer } from 'node:http'
-import { apply } from '../lib/index.js'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+// Isolate plugin state: a real shell exports DSH_HOME (the Harness home), and
+// the plugin persists its route file there — a simulation must never write to it.
+process.env.DSH_HOME = mkdtempSync(join(tmpdir(), 'dsh-feishu-sim-'))
+
+const { apply } = await import('../lib/index.js')
 
 const SESSION = 'eade6582-8234-4f9d-b631-0085bab1eac4'
 const CHAT = 'oc_sim_chat'
@@ -189,6 +197,7 @@ console.log('  重复投递:', delivered.length > before ? '有 ❌' : '无 ✅'
 globalThis.fetch = realFetch
 server.close()
 console.log('')
+console.log('  状态目录（临时，已隔离）:', process.env.DSH_HOME)
 const pass = sendCall !== undefined && delivered.length === 1 && ack !== undefined && delivered.length === before && delivered[0].content[0].text === '继续跑剩下的测试'
 console.log(pass ? 'SIMULATION PASSED' : 'SIMULATION FAILED')
 process.exit(pass ? 0 : 1)
