@@ -130,6 +130,8 @@ node tools/feishu-check.mjs
 
 > 轮询间隔默认 5 秒（可在卡片里改 2–60）。会话映射持久化在 `$DSH_HOME/data/dsh-genshin-lisa-notice/feishu-routes.json`。
 >
+> 想在没有真实飞书的情况下验证整条链路（发卡片 → 拉取 → 投递 → 去重），跑 `npm install` 后执行 `node tools/simulate.mjs`：它在本地起一个假飞书服务器并用假 Agent 断言 `agent.followup` 收到的内容。
+>
 > ⚠️ 群请**不要开启「话题」模式**：飞书在话题群里，回复只存在于话题内，`container_id_type=chat` 只能拿到话题根消息，插件拉不到话题内的回复。普通的引用回复不受影响。
 
 ## 截图 / Screenshots
