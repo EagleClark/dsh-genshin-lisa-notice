@@ -4,12 +4,13 @@
  * DSH: a local HTTP server impersonates open.feishu.cn and a minimal fake
  * context/agent stands in for the Harness.
  *
- * What it proves:
+ * Proves, in one run:
  *   1. a completion sends an interactive card via the bot (correct URL + body),
  *   2. the sent message_id is remembered as the route for that session,
- *   3. a quote-reply in the chat is polled, deduped and delivered through
- *      `agent.followup`, with the `#session` token stripped,
- *   4. the delivery is acknowledged back in Feishu.
+ *   3. a quote-reply is polled, deduped and delivered through `agent.followup`,
+ *   4. a reply to a QUESTION card answers the pending question through
+ *      `userQuestions.answer` (not a queued turn),
+ *   5. delivery is acknowledged back in Feishu.
  *
  * Run: node tools/simulate.mjs   (needs `npm install` once, for schemastery)
  */
@@ -24,14 +25,18 @@ process.env.DSH_HOME = mkdtempSync(join(tmpdir(), 'dsh-feishu-sim-'))
 
 const { apply } = await import('../lib/index.js')
 
-const SESSION = 'eade6582-8234-4f9d-b631-0085bab1eac4'
+const SESSION = 'session-eade6582-8234-4f9d-b631-0085bab1eac4'
 const CHAT = 'oc_sim_chat'
 const APP = { id: 'cli_sim', secret: 'sim-secret' }
 
-const calls = []          // every request the plugin made to "Feishu"
-const sent = []           // cards the bot sent
-const delivered = []      // messages handed to agent.followup
-let replyServed = false
+const calls = []      // every request the plugin made to "Feishu"
+const sent = []       // cards the bot sent
+const delivered = []  // messages handed to agent.followup
+const answered = []   // answers handed to userQuestions.answer
+const queuedReplies = [] // replies the fake chat will serve, oldest first
+let nextId = 1
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // ── fake Feishu ───────────────────────────────────────────────────────────────
 const server = createServer((req, res) => {
@@ -49,32 +54,30 @@ const server = createServer((req, res) => {
     }
     if (req.method === 'POST' && url.pathname.endsWith('/im/v1/messages')) {
       const parsed = JSON.parse(body)
-      sent.push(parsed)
-      return send({ code: 0, data: { message_id: 'om_bot_1' } })
+      const messageId = 'om_bot_' + nextId++
+      sent.push({ ...parsed, messageId })
+      return send({ code: 0, data: { message_id: messageId } })
     }
     if (req.method === 'GET' && url.pathname.endsWith('/im/v1/messages')) {
-      if (sent.length === 0 || replyServed) return send({ code: 0, data: { items: [] } })
-      replyServed = true
-      // A human quote-replies to the card, with an explicit #session token too.
+      if (queuedReplies.length === 0) return send({ code: 0, data: { items: [] } })
+      const reply = queuedReplies.shift()
       return send({
         code: 0,
         data: {
-          items: [
-            {
-              message_id: 'om_human_1',
-              parent_id: 'om_bot_1',
-              create_time: String(Date.now()),
-              msg_type: 'text',
-              deleted: false,
-              sender: { sender_type: 'user', id: 'ou_someone' },
-              body: { content: JSON.stringify({ text: '#eade 继续跑剩下的测试' }) },
-            },
-          ],
+          items: [{
+            message_id: 'om_human_' + nextId++,
+            parent_id: reply.parentId,
+            create_time: String(Date.now()),
+            msg_type: 'text',
+            deleted: false,
+            sender: { sender_type: 'user', id: 'ou_someone' },
+            body: { content: JSON.stringify({ text: reply.text }) },
+          }],
         },
       })
     }
     if (req.method === 'POST' && url.pathname.includes('/reply')) {
-      return send({ code: 0, data: { message_id: 'om_ack_1' } })
+      return send({ code: 0, data: { message_id: 'om_ack_' + nextId++ } })
     }
     return send({ code: 0, data: {} })
   })
@@ -84,7 +87,6 @@ const port = await new Promise((resolve) => {
   server.listen(0, '127.0.0.1', () => resolve(server.address().port))
 })
 
-// Redirect every Feishu call the plugin makes to the local server.
 const realFetch = globalThis.fetch
 globalThis.fetch = (url, init) => realFetch(String(url).replace('https://open.feishu.cn', `http://127.0.0.1:${port}`), init)
 
@@ -105,13 +107,7 @@ const ctx = {
   },
   get(name) { return services[name] },
   inject(names, cb) {
-    const child = {
-      fiber: {},
-      effect: ctx.effect,
-      get: ctx.get,
-      on: ctx.on,
-      inject: ctx.inject,
-    }
+    const child = { fiber: {}, effect: ctx.effect, get: ctx.get, on: ctx.on, inject: ctx.inject }
     for (const name of names) child[name] = services[name]
     cb(child)
     return () => {}
@@ -123,11 +119,22 @@ const emit = (name, ...args) => {
 
 services.settings = { configure: () => () => {} }
 services.webServer = { register: () => () => {} }
+services.sessionQuery = {
+  readTitleSnapshot: async (id) => ({
+    session: { id, cwd: 'D:\\Code\\SSE' },
+    title: id === SESSION ? { title: '飞书助手配置' } : undefined,
+  }),
+}
+services.userQuestions = {
+  answer: (agent, callId, answer) => {
+    answered.push({ callId, answer })
+    return true
+  },
+}
 services.agents = {
   get: (id) => (id === SESSION ? { id, followup: (message) => delivered.push(message) } : undefined),
 }
 
-// ── drive the plugin ──────────────────────────────────────────────────────────
 const config = {
   completionAudio: '',
   interactionAudio: '',
@@ -143,61 +150,83 @@ const config = {
 }
 
 apply(ctx, config)
-
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const session = { id: SESSION }
 
 // Give the plugin a task + result to summarise.
-emit('session/event', { id: SESSION }, {
-  type: 'user/message', data: { content: [{ type: 'text', text: '帮我把单元测试补上' }] },
-})
-emit('session/event', { id: SESSION }, {
-  type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '已补 12 个用例，全部通过。' }] } },
-})
+emit('session/event', session, { type: 'user/message', data: { content: [{ type: 'text', text: '帮我把单元测试补上' }] } })
+emit('session/event', session, { type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '已补 12 个用例，全部通过。' }] } } })
 
-// A completed turn → the bot should send a card.
+// ── phase 1: completion → card → quote reply → followup ──────────────────────
 emit('agent/turn-stopping', { agent: { id: SESSION } })
 emit('agent/status', { agent: { id: SESSION }, status: 'idle' })
+await wait(400)
 
-await wait(300)
-console.log('=== 1. 机器人发卡片 ===')
-const sendCall = calls.find((c) => c.method === 'POST' && c.path.endsWith('/im/v1/messages'))
-console.log('  发送请求存在:', sendCall !== undefined)
-if (sendCall !== undefined) {
-  const body = JSON.parse(sendCall.body)
-  console.log('  receive_id:', body.receive_id, '| msg_type:', body.msg_type)
-  const card = JSON.parse(body.content)
-  console.log('  card schema:', card.schema, '| header:', card.header.title.content)
+console.log('=== 1. 完成任务卡片 ===')
+const cardCall = calls.find((c) => c.method === 'POST' && c.path.endsWith('/im/v1/messages'))
+console.log('  已发送:', cardCall !== undefined)
+if (cardCall !== undefined) {
+  const body = JSON.parse(cardCall.body)
   const flat = body.content
-  console.log('  含任务摘要:', flat.includes('帮我把单元测试补上'), '| 含结果:', flat.includes('已补 12 个用例'))
-  console.log('  含回复提示:', flat.includes('引用回复本条消息'))
+  console.log('  receive_id:', body.receive_id, '| msg_type:', body.msg_type, '| schema 2.0:', flat.includes('"schema":"2.0"'))
+  console.log('  含任务/结果:', flat.includes('帮我把单元测试补上') && flat.includes('已补 12 个用例'))
+  console.log('  会话标签:', /会话 ([^·"]+·[^·"]+)/.exec(flat) ? RegExp.$1 : '(未找到)')
+  console.log('  回复提示:', flat.includes('引用回复本条消息'))
 }
 
-// Wait for two poll cycles: the first only sets the cursor, the second delivers.
+queuedReplies.push({ parentId: sent[0].messageId, text: '#eade 继续跑剩下的测试' })
 await wait(4500)
 
-console.log('=== 2. 拉取与投递 ===')
-const listCalls = calls.filter((c) => c.method === 'GET' && c.path.endsWith('/im/v1/messages'))
-console.log('  轮询次数:', listCalls.length)
-console.log('  收到的回复被投递:', delivered.length === 1)
+console.log('=== 2. 引用回复 → 送入会话 ===')
+console.log('  投递条数:', delivered.length)
 if (delivered.length > 0) {
-  const message = delivered[0]
-  console.log('  投递消息 role:', message.role, '| source:', JSON.stringify(message.source))
-  console.log('  内容:', JSON.stringify(message.content[0].text))
-  console.log('  #会话号已剥离:', message.content[0].text === '继续跑剩下的测试')
+  console.log('  role/source:', delivered[0].role, JSON.stringify(delivered[0].source))
+  console.log('  内容:', JSON.stringify(delivered[0].content[0].text), '（#号已剥离）')
 }
-const ack = calls.find((c) => c.method === 'POST' && c.path.includes('/om_human_1/reply'))
-console.log('  飞书回执已发送:', ack !== undefined)
+console.log('  回执请求:', calls.some((c) => c.method === 'POST' && c.path.includes('/reply')))
 
-// A second poll must not deliver the same message twice.
-const before = delivered.length
+// ── phase 2: question card → quote reply → userQuestions.answer ──────────────
+const beforeDelivered = delivered.length
+emit('tools/pre-execute', {
+  name: 'ask_user_question',
+  callId: 'call_q1',
+  agent: { id: SESSION },
+  arguments: { questions: [{ id: 'q1', question: '要选哪个方案？', options: [{ label: '方案 A' }, { label: '方案 B' }] }] },
+}, () => {})
+await wait(400)
+
+console.log('=== 3. 提问卡片 ===')
+const questionCard = sent[sent.length - 1]
+const questionBody = questionCard ? questionCard.content : ''
+console.log('  已发送:', questionCard !== undefined, '| 含「直接回答这个问题」:', questionBody.includes('直接回答这个问题'))
+
+queuedReplies.push({ parentId: questionCard.messageId, text: '方案 B' })
+await wait(4500)
+
+console.log('=== 4. 回复提问卡片 → 回答而非排队 ===')
+console.log('  userQuestions.answer 调用:', answered.length)
+if (answered.length > 0) {
+  console.log('  callId:', answered[0].callId)
+  console.log('  answers:', JSON.stringify(answered[0].answer))
+}
+console.log('  未误投为普通消息:', delivered.length === beforeDelivered)
+
+// ── dedupe: nothing is delivered twice ───────────────────────────────────────
+const beforeDedupe = delivered.length
 await wait(2500)
-console.log('=== 3. 去重 ===')
-console.log('  重复投递:', delivered.length > before ? '有 ❌' : '无 ✅')
+console.log('=== 5. 去重 ===')
+console.log('  重复投递:', delivered.length > beforeDedupe ? '有 ❌' : '无 ✅')
 
 globalThis.fetch = realFetch
 server.close()
+
+const pass = cardCall !== undefined
+  && delivered.length === beforeDelivered
+  && beforeDelivered >= 1
+  && answered.length === 1
+  && answered[0].callId === 'call_q1'
+  && answered[0].answer.answers[0].selected[0] === '方案 B'
+  && delivered.length === beforeDedupe
 console.log('')
 console.log('  状态目录（临时，已隔离）:', process.env.DSH_HOME)
-const pass = sendCall !== undefined && delivered.length === 1 && ack !== undefined && delivered.length === before && delivered[0].content[0].text === '继续跑剩下的测试'
 console.log(pass ? 'SIMULATION PASSED' : 'SIMULATION FAILED')
 process.exit(pass ? 0 : 1)
