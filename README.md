@@ -14,6 +14,7 @@ The package is named `dsh-genshin-lisa-notice` (i.e. `lisa-notice`). It **starte
 - 任意会话的执行完成（回合即将关闭）时，在浏览器中播放一次音频提醒，并**发送浏览器系统通知（含任务完成摘要）**；可选**飞书 webhook 推送**
 - agent 调用提问工具（`ask_user_question`）向你请求输入时，同样播放提醒并发送通知（+ 飞书）
 - **模型故障也会提醒**：请求失败导致回合报错时（欠费 / 鉴权失败 / 限流 429 / 服务端 5xx / 网络异常 / 超时），发送声音 + 系统通知 + **红色飞书卡片**，并带上具体 HTTP 状态码、错误码与原始信息
+- **飞书助手可回复**：改用**应用机器人**后，通知发到指定群聊，**直接引用回复那条通知**即可把消息送回原会话并唤醒 agent 继续干活（详见下方「飞书助手」）
 - **声音 / 系统通知** 两种方式默认开启，可在 **插件 → dsh-genshin-lisa-notice** 的配置卡片里分别用**开关**关闭；**飞书通知**默认关闭，需填 webhook 地址并开启
 - 两种提醒**可分别配置语音**：内置语音库（完成默认"丽莎姐姐聊聊天"、交互默认"罗莎莉亚不加班"，另有兹白·无须言语 / 罗莎莉亚·还不走吗 / 胡桃·晒太阳月亮歌 / 系统音效 1-3）在配置卡片里**下拉选择**，也可一键恢复默认，并支持**试听**
 - 也支持**上传自定义音频**（显示原文件名），并可随时回退到内置语音
@@ -80,6 +81,42 @@ dsh plugin --profile web add github:EagleClark/dsh-genshin-lisa-notice
 - 配置本身写进 **该 profile 的 `cordis.patch.yml`**（`$DSH_HOME/profiles/<profile>/cordis.patch.yml` 里 `dsh-genshin-lisa-notice` 行下的 `config:`），与 dsh ≥ 0.1.7-rc.2 的插件配置模型一致
 
 > 需要 **dsh ≥ 0.1.7-rc.2**：该版本用插件自身的 Config + `ctx.configForms` 取代了旧的 `settingsScope` 设置命名空间。旧版 dsh 上插件会因等待 `settingsScope` 而无法激活。
+
+## 飞书助手（可回复）/ Feishu assistant
+
+Webhook 只能「单向推送」；要**直接回复通知**，需要改用**飞书应用机器人**。
+
+### 1. 建应用（飞书开放平台）
+
+1. 打开 [open.feishu.cn/app](https://open.feishu.cn/app) → **创建企业自建应用**
+2. **添加应用能力** → 开启 **机器人**
+3. **权限管理** → 开通：
+   - `im:message:send_as_bot`（以应用身份发消息）— 发通知
+   - `im:message.readonly` 或 `im:message`（读取消息）— 读回复
+   - `im:message.group_msg`（**获取群组中所有消息**）— 读群聊回复，群聊必需
+4. **凭证与基础信息** → 复制 **App ID**（`cli_` 开头）与 **App Secret**
+5. **版本管理与发布** → 创建版本并发布（可用范围包含你自己）
+
+### 2. 建群并拿 chat_id
+
+1. 新建一个群（建议就用它当"助手群"），把**机器人拉进群**
+2. 取 `chat_id`（`oc_` 开头）任选一种：
+   - 群设置 → 群信息里查看；
+   - 或调用 `GET /open-apis/im/v1/chats` 列出机器人所在群；
+   - 或在本插件里开启助手后，看 host 日志里拉取失败时的提示
+
+### 3. 在插件里配置
+
+**设置 → 插件市场/内置插件 → Genshin通知提醒** 卡片里填 **App ID / App Secret / 群 chat_id**，打开 **飞书助手（可回复）** 开关（可关掉原来的「飞书通知」webhook）。
+
+之后：
+
+- 通知由机器人发到该群（Card 2.0 卡片，含**会话号前 8 位**）
+- 在飞书里**引用回复那条通知** → 内容会作为用户消息送进原会话（agent 会被唤醒继续干活），并在飞书里回一条「✅ 已送入会话 xxxx」
+- 没引用、直接发消息时，会送给**该群最近一条通知**对应的会话
+- 目标会话当前未打开时，飞书里会提示"会话未打开，消息未送达"（`agents.get` 只能找到**活着的**会话）
+
+> 轮询间隔默认 5 秒（可在卡片里改 2–60）。会话映射持久化在 `$DSH_HOME/data/dsh-genshin-lisa-notice/feishu-routes.json`。
 
 ## 截图 / Screenshots
 

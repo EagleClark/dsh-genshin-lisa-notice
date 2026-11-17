@@ -357,6 +357,22 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         reportWrite(writeField(key, checked), checked ? labels[0] : labels[1], "保存失败 / Save failed: ");
       }
 
+      // Text/number inputs commit on blur: one write per committed value instead
+      // of one per keystroke.
+      function onText(key, value, done) {
+        var next = typeof value === "string" ? value.trim() : value;
+        reportWrite(writeField(key, next), done || "已保存 / Saved", "保存失败 / Save failed: ");
+      }
+
+      function onNumberText(key, raw, done) {
+        var n = Number(String(raw == null ? "" : raw).trim());
+        if (!Number.isFinite(n) || n < 2 || n > 60) {
+          setMessage("间隔需在 2–60 秒之间 / Must be 2–60 seconds");
+          return;
+        }
+        onText(key, n, done);
+      }
+
       async function upload(field, file) {
         var buf = await file.arrayBuffer();
         var res = await fetch(UPLOAD_PATH + "?kind=" + field, { method: "POST", body: buf });
@@ -549,6 +565,49 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
               }),
               "飞书通知",
             ),
+            react.createElement("label", { className: "dgn-toggleLabel" },
+              react.createElement("input", {
+                type: "checkbox",
+                checked: value.feishuBotEnabled === true,
+                disabled: !writable || saving,
+                onChange: function (e) { onToggle("feishuBotEnabled", e.target.checked, ["助手已开启 / Bot on", "助手已关闭 / Bot off"]); },
+              }),
+              "飞书助手（可回复）",
+            ),
+          ),
+          react.createElement("div", { className: "dgn-field" },
+            react.createElement("div", { className: "dgn-fieldLabel" }, "飞书助手凭证"),
+            react.createElement("p", { className: "dgn-fieldHint" },
+              "填应用凭证 + 群 chat_id，并打开上面的「飞书助手」：通知改由机器人发到该群，且**直接回复那条通知**就会把消息送回原会话。",
+            ),
+            react.createElement("input", {
+              className: "dgn-select", type: "text", disabled: !writable || saving,
+              defaultValue: String(value.feishuAppId || ""),
+              placeholder: "App ID（cli_ 开头）",
+              onBlur: function (e) { onText("feishuAppId", e.target.value, "App ID 已保存 / Saved"); },
+              style: { width: "100%", maxWidth: "100%", marginTop: "6px" },
+            }),
+            react.createElement("input", {
+              className: "dgn-select", type: "password", disabled: !writable || saving,
+              defaultValue: String(value.feishuAppSecret || ""),
+              placeholder: "App Secret",
+              onBlur: function (e) { onText("feishuAppSecret", e.target.value, "App Secret 已保存 / Saved"); },
+              style: { width: "100%", maxWidth: "100%", marginTop: "6px" },
+            }),
+            react.createElement("input", {
+              className: "dgn-select", type: "text", disabled: !writable || saving,
+              defaultValue: String(value.feishuChatId || ""),
+              placeholder: "群聊 chat_id（oc_ 开头）",
+              onBlur: function (e) { onText("feishuChatId", e.target.value, "chat_id 已保存 / Saved"); },
+              style: { width: "100%", maxWidth: "100%", marginTop: "6px" },
+            }),
+            react.createElement("input", {
+              className: "dgn-select", type: "number", min: 2, max: 60, disabled: !writable || saving,
+              defaultValue: String(value.feishuPollSeconds || 5),
+              placeholder: "回复拉取间隔（秒）",
+              onBlur: function (e) { onNumberText("feishuPollSeconds", e.target.value, "拉取间隔已保存 / Saved"); },
+              style: { width: "180px", marginTop: "6px" },
+            }),
           ),
           react.createElement("div", { className: "dgn-field" },
             react.createElement("div", { className: "dgn-fieldLabel" }, "飞书 Webhook 地址"),
