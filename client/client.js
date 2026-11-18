@@ -34,6 +34,7 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
   var COMPLETION_AUDIO_PATH = "/dsh-genshin-lisa-notice/alert.mp3";
   var INTERACTION_AUDIO_PATH = "/dsh-genshin-lisa-notice/interaction.mp3";
   var VOICE_PLAY_PATH = "/dsh-genshin-lisa-notice/voice.mp3";
+  var CLIENT_DIAG_PATH = "/dsh-genshin-lisa-notice/client-diag";
   // Package name == Loader row id == settings namespace of this bundle.
   var PKG = "dsh-genshin-lisa-notice";
   var ENTRY_ID = PKG;
@@ -440,73 +441,80 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
 
       // One atomic write for everything staged on this form: revision-fenced,
       // validated by the host against the full plugin Config.
-      function applyStaged() {
-        var ops = [];
-        var failed = null;
+      // The browser half cannot write the host log; this reports what the commit
+      // button attempted, so a refused write is diagnosable without a debugger.
+      function diag(payload) {
+        try {
+          fetch(CLIENT_DIAG_PATH, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(payload),
+          }).catch(function () { /* diagnostics never break the form */ });
+        } catch (error) { /* ignore */ }
+      }
+
+      // Sequential writes through `form.set` / `form.unset` — the one path this
+      // client is known to commit with. The batch `mutate(ops, revision)` form
+      // silently refused these writes (nothing ever reached the profile), so the
+      // confirmation button no longer uses it.
+      async function writeOne(key, next) {
+        diag({ step: "write", key: key, value: next === inherited(key) ? "(unset)" : String(next).slice(0, 40) });
+        var accepted = next === inherited(key) ? await form.unset(key) : await form.set(key, next);
+        diag({ step: "write-result", key: key, accepted: accepted });
+        if (accepted === false) throw new Error("部署未接受 " + key + " / refused");
+      }
+
+      async function applyStaged() {
+        // Validate everything first: a bad number must not leave a half-applied
+        // form behind.
+        var credentialKeys = ["feishuAppId", "feishuAppSecret", "feishuChatId"];
         var keys = Object.keys(draft);
-        for (var i = 0; i < keys.length; i++) {
+        var planned = [];
+        for (var i = 0; i < keys.length; i += 1) {
           var key = keys[i];
           var normalised = normalise(key, draft[key]);
           if (normalised.error) {
-            failed = normalised.error;
-            break;
+            setMessage(normalised.error);
+            return;
           }
-          var next = normalised.value;
-          var prev = inherited(key);
-          if (next === prev) ops.push({ op: "unset", path: [key] });
-          else ops.push({ op: "set", path: [key], value: next });
+          // An emptied credential box means "leave the stored value alone".
+          if (credentialKeys.indexOf(key) !== -1 && String(draft[key]).trim() === "") continue;
+          planned.push({ key: key, value: normalised.value });
         }
-        // Credentials are write-only in practice: an emptied box must not wipe a
-        // stored secret by accident.
-        var credentialKeys = ["feishuAppId", "feishuAppSecret", "feishuChatId"];
-        for (var c = 0; c < credentialKeys.length; c++) {
-          var ck = credentialKeys[c];
-          if (Object.prototype.hasOwnProperty.call(draft, ck) && String(draft[ck]).trim() === "") {
-            ops = ops.filter(function (op) { return op.path[0] !== ck; });
-          }
-        }
-        if (failed !== null) {
-          setMessage(failed);
+        var hasAudio = pendingCompletion !== null || pendingInteraction !== null;
+        if (planned.length === 0 && !hasAudio) {
+          setDraft({});
+          setMessage("没有需要保存的修改 / Nothing to save");
           return;
         }
 
         setSaving(true);
         setMessage("");
-        var audioPending = { completion: pendingCompletion, interaction: pendingInteraction };
-        var work = Promise.resolve();
-        ["completion", "interaction"].forEach(function (field) {
-          var p = audioPending[field];
-          if (!p) return;
-          var key = field + "Audio";
-          if (p.kind === "builtin") {
-            ops.push(p.key === inherited(key) ? { op: "unset", path: [key] } : { op: "set", path: [key], value: p.key });
-            return;
+        diag({ step: "apply-start", planned: planned.length, hasAudio: hasAudio });
+        try {
+          var pendingByField = { completion: pendingCompletion, interaction: pendingInteraction };
+          var fields = ["completion", "interaction"];
+          for (var f = 0; f < fields.length; f += 1) {
+            var field = fields[f];
+            var staged = pendingByField[field];
+            if (!staged) continue;
+            var audioPath = staged.kind === "builtin" ? staged.key : (await upload(field, staged.file)).path;
+            await writeOne(field + "Audio", audioPath);
           }
-          work = work
-            .then(function () { return upload(field, p.file); })
-            .then(function (json) {
-              ops.push(json.path === inherited(key) ? { op: "unset", path: [key] } : { op: "set", path: [key], value: json.path });
-            });
-        });
-
-        work
-          .then(function () {
-            return ops.length === 0 ? true : form.mutate(ops, snap.revision);
-          })
-          .then(function (ok) {
-            if (ok === false) {
-              setMessage("部署未接受这些值 / Refused");
-              return;
-            }
-            setPendingCompletion(null);
-            setPendingInteraction(null);
-            setDraft({});
-            setMessage("已保存并生效 / Saved");
-          })
-          .catch(function (error) {
-            setMessage("保存失败 / Save failed: " + messageOf(error));
-          })
-          .then(function () { setSaving(false); });
+          for (var p = 0; p < planned.length; p += 1) {
+            await writeOne(planned[p].key, planned[p].value);
+          }
+          setPendingCompletion(null);
+          setPendingInteraction(null);
+          setDraft({});
+          setMessage("已保存并生效 / Saved");
+          diag({ step: "apply-ok" });
+        } catch (error) {
+          setMessage("保存失败 / Save failed: " + messageOf(error));
+          diag({ step: "apply-error", message: messageOf(error) });
+        } finally {
+          setSaving(false);
+        }
       }
 
       function cancel() {
@@ -516,23 +524,20 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         setMessage("已放弃未保存的修改 / Discarded");
       }
 
-      function reset() {
+      async function reset() {
         setSaving(true);
         setMessage("");
-        form.mutate([{ op: "unset", path: ["completionAudio"] }, { op: "unset", path: ["interactionAudio"] }], snap.revision)
-          .then(function (ok) {
-            if (ok === false) {
-              setMessage("部署未接受该值 / Refused");
-              return;
-            }
-            setPendingCompletion(null);
-            setPendingInteraction(null);
-            setMessage("已恢复默认语音 / Reset to default");
-          })
-          .catch(function (error) {
-            setMessage("恢复失败 / Reset failed: " + messageOf(error));
-          })
-          .then(function () { setSaving(false); });
+        try {
+          await form.unset("completionAudio");
+          await form.unset("interactionAudio");
+          setPendingCompletion(null);
+          setPendingInteraction(null);
+          setMessage("已恢复默认语音 / Reset to default");
+        } catch (error) {
+          setMessage("恢复失败 / Reset failed: " + messageOf(error));
+        } finally {
+          setSaving(false);
+        }
       }
 
       function voiceOptions() {
