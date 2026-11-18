@@ -702,28 +702,28 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
               channelChoice("webhook", "飞书通知（Webhook）", "群自定义机器人，只能单向推送"),
             ),
           ),
-          react.createElement("div", { className: "dgn-section" },
-            react.createElement("p", { className: "dgn-sectionTitle" }, "飞书助手凭证"),
-            react.createElement("p", { className: "dgn-fieldHint" },
-              mode === "bot" ? "填写应用机器人凭证与该群 chat_id。" : "选择「飞书助手（可回复）」后才能编辑。",
-            ),
-            textField({
-              key: "feishuAppId", label: "App ID", placeholder: "cli_ 开头",
-              disabled: mode !== "bot",
-            }),
-            textField({
-              key: "feishuAppSecret", label: "App Secret", type: "password", placeholder: "应用密钥",
-              disabled: mode !== "bot", secret: true,
-            }),
-            textField({
-              key: "feishuChatId", label: "群 chat_id", placeholder: "oc_ 开头",
-              disabled: mode !== "bot",
-            }),
-            textField({
-              key: "feishuPollSeconds", label: "回复拉取间隔（秒）", type: "number", placeholder: "2–60，默认 5",
-              disabled: mode !== "bot",
-            }),
-          ),
+          // Exactly one channel's settings exist at a time: the assistant's
+          // credentials under `bot`, the webhook address under `webhook`, and
+          // nothing at all when Feishu is off.
+          mode === "bot"
+            ? react.createElement("div", { className: "dgn-section" },
+              react.createElement("p", { className: "dgn-sectionTitle" }, "飞书助手凭证"),
+              react.createElement("p", { className: "dgn-fieldHint" }, "应用机器人凭证与该群 chat_id。"),
+              textField({
+                key: "feishuAppId", label: "App ID", placeholder: "cli_ 开头",
+              }),
+              textField({
+                key: "feishuAppSecret", label: "App Secret", type: "password", placeholder: "应用密钥",
+                secret: true,
+              }),
+              textField({
+                key: "feishuChatId", label: "群 chat_id", placeholder: "oc_ 开头",
+              }),
+              textField({
+                key: "feishuPollSeconds", label: "回复拉取间隔（秒）", type: "number", placeholder: "2–60，默认 5",
+              }),
+            )
+            : null,
           // The webhook only exists as a channel of its own; under the assistant
           // (and when Feishu is off) it would be dead weight in the form.
           mode === "webhook"
