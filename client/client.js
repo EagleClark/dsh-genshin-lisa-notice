@@ -695,11 +695,11 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
           ),
           react.createElement("div", { className: "dgn-section" },
             react.createElement("p", { className: "dgn-sectionTitle" }, "飞书通道"),
-            react.createElement("p", { className: "dgn-fieldHint" }, "二选一：助手可回复，Webhook 只推送。"),
+            react.createElement("p", { className: "dgn-fieldHint" }, "二选一：助手可回复（推荐），Webhook 只单向推送。"),
             react.createElement("div", { className: "dgn-choices" },
               channelChoice("off", "关闭", "不发送任何飞书消息"),
-              channelChoice("webhook", "飞书通知（Webhook）", "群自定义机器人，只能单向推送"),
               channelChoice("bot", "飞书助手（可回复）", "应用机器人发到群，可直接在飞书里回复并回到原会话"),
+              channelChoice("webhook", "飞书通知（Webhook）", "群自定义机器人，只能单向推送"),
             ),
           ),
           react.createElement("div", { className: "dgn-section" },
@@ -724,17 +724,18 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
               disabled: mode !== "bot",
             }),
           ),
-          react.createElement("div", { className: "dgn-section" },
-            react.createElement("p", { className: "dgn-sectionTitle" }, "飞书 Webhook"),
-            textField({
-              key: "feishuWebhook", label: "Webhook 地址",
-              placeholder: "https://open.feishu.cn/open-apis/bot/v2/hook/…",
-              disabled: mode === "off",
-              hint: mode === "bot"
-                ? "可选：助手发送失败时用它兜底。"
-                : "群自定义机器人的地址；开启飞书通知后推送到该群。",
-            }),
-          ),
+          // The webhook only exists as a channel of its own; under the assistant
+          // (and when Feishu is off) it would be dead weight in the form.
+          mode === "webhook"
+            ? react.createElement("div", { className: "dgn-section" },
+              react.createElement("p", { className: "dgn-sectionTitle" }, "飞书 Webhook"),
+              textField({
+                key: "feishuWebhook", label: "Webhook 地址",
+                placeholder: "https://open.feishu.cn/open-apis/bot/v2/hook/…",
+                hint: "群自定义机器人的地址；完成后推送到该群（只能单向推送）。",
+              }),
+            )
+            : null,
           writable ? null : react.createElement("p", { className: "dgn-fieldHint" },
             snap.status === "unavailable"
               ? "本页面不是 loopback 打开的，配置暂不可写 / Configuration is read-only on this page."
