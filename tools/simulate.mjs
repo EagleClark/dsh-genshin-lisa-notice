@@ -166,6 +166,7 @@ await wait(400)
 
 console.log('=== 1. 完成任务卡片 ===')
 const cardCall = calls.find((c) => c.method === 'POST' && c.path.endsWith('/im/v1/messages'))
+let hasModel = false
 console.log('  已发送:', cardCall !== undefined)
 if (cardCall !== undefined) {
   const body = JSON.parse(cardCall.body)
@@ -173,7 +174,8 @@ if (cardCall !== undefined) {
   console.log('  receive_id:', body.receive_id, '| msg_type:', body.msg_type, '| schema 2.0:', flat.includes('"schema":"2.0"'))
   console.log('  含任务/结果:', flat.includes('帮我把单元测试补上') && flat.includes('已补 12 个用例'))
   console.log('  会话标签:', /会话 ([^·"]+·[^·"]+)/.exec(flat) ? RegExp.$1 : '(未找到)')
-  console.log('  模型信息:', flat.includes('模型 newapi/deepseek-flash'))
+  hasModel = flat.includes('模型 newapi/deepseek-flash')
+  console.log('  模型信息:', hasModel)
   console.log('  回复提示:', flat.includes('引用回复本条消息'))
 }
 
@@ -244,6 +246,7 @@ globalThis.fetch = realFetch
 server.close()
 
 const pass = cardCall !== undefined
+  && hasModel
   && delivered.length === beforeDelivered
   && beforeDelivered >= 1
   && answered.length === 1
