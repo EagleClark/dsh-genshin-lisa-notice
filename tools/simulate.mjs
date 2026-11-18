@@ -155,6 +155,8 @@ const session = { id: SESSION }
 // Give the plugin a task + result to summarise.
 emit('session/event', session, { type: 'user/message', data: { content: [{ type: 'text', text: '帮我把单元测试补上' }] } })
 emit('session/event', session, { type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '已补 12 个用例，全部通过。' }] } } })
+// The model the turn ran on, captured from the request header.
+emit('session/event', session, { type: 'request/header', data: { header: { provider: 'newapi', model: 'deepseek-flash' }, reason: 'model' } })
 
 // ── phase 1: completion → card → quote reply → followup ──────────────────────
 emit('agent/turn-stopping', { agent: { id: SESSION } })
@@ -170,6 +172,7 @@ if (cardCall !== undefined) {
   console.log('  receive_id:', body.receive_id, '| msg_type:', body.msg_type, '| schema 2.0:', flat.includes('"schema":"2.0"'))
   console.log('  含任务/结果:', flat.includes('帮我把单元测试补上') && flat.includes('已补 12 个用例'))
   console.log('  会话标签:', /会话 ([^·"]+·[^·"]+)/.exec(flat) ? RegExp.$1 : '(未找到)')
+  console.log('  模型信息:', flat.includes('模型 newapi/deepseek-flash'))
   console.log('  回复提示:', flat.includes('引用回复本条消息'))
 }
 
