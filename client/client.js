@@ -453,15 +453,25 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         } catch (error) { /* ignore */ }
       }
 
-      // Sequential writes through `form.set` / `form.unset` — the one path this
-      // client is known to commit with. The batch `mutate(ops, revision)` form
-      // silently refused these writes (nothing ever reached the profile), so the
-      // confirmation button no longer uses it.
+      // Sequential writes through `form.set` / `form.unset`.
+      //
+      // `set` answers `false` for a value that already equals the served one
+      // ("nothing to write"), which is not a failure — so a refusal is confirmed
+      // against a fresh snapshot before it is reported.
       async function writeOne(key, next) {
-        diag({ step: "write", key: key, value: next === inherited(key) ? "(unset)" : String(next).slice(0, 40) });
-        var accepted = next === inherited(key) ? await form.unset(key) : await form.set(key, next);
+        var isUnset = next === inherited(key);
+        diag({ step: "write", key: key, value: isUnset ? "(unset)" : String(next).slice(0, 40) });
+        var accepted = isUnset ? await form.unset(key) : await form.set(key, next);
+        if (accepted === false) {
+          var fresh = null;
+          try { fresh = form.getSnapshot(); } catch (error) { fresh = null; }
+          var now = fresh && fresh.value !== null && typeof fresh.value === "object" ? fresh.value[key] : undefined;
+          var applied = isUnset ? now === undefined : now === next;
+          diag({ step: "write-result", key: key, accepted: false, applied: applied, now: String(now) });
+          if (applied !== true) throw new Error("部署未接受 " + key + " / refused");
+          return;
+        }
         diag({ step: "write-result", key: key, accepted: accepted });
-        if (accepted === false) throw new Error("部署未接受 " + key + " / refused");
       }
 
       async function applyStaged() {
@@ -479,6 +489,13 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
           }
           // An emptied credential box means "leave the stored value alone".
           if (credentialKeys.indexOf(key) !== -1 && String(draft[key]).trim() === "") continue;
+          // Skip what the served document already holds: rewriting an unchanged
+          // value is a no-op the form answers with `false`.
+          var served = Object.prototype.hasOwnProperty.call(value, key) ? value[key] : inherited(key);
+          if (normalised.value === served) {
+            diag({ step: "skip-unchanged", key: key });
+            continue;
+          }
           planned.push({ key: key, value: normalised.value });
         }
         var hasAudio = pendingCompletion !== null || pendingInteraction !== null;
