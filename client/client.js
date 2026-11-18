@@ -6,11 +6,19 @@
 // the factory's require — NOT a global.
 //
 // Settings: the host half declares this bundle's Config (voice keys/paths,
-// the two notification switches, the Feishu webhook) with every field
-// volatile. This half binds the same entry id through `ctx.configForms` and
-// registers a configuration card into the Plugins page's `plugins.bundle.config`
-// slot while the host serves the entry, so writes ride the settings document's
-// revision fence instead of a private settings namespace.
+// the two notification switches, the Feishu webhook and the Feishu assistant
+// credentials) with every field volatile. This half binds the same entry id
+// through `ctx.configForms`, so writes ride the settings document's revision
+// fence instead of a private settings namespace.
+//
+// Seats, in the order the user asked for them:
+//   - `sidebar.panellist` + `main`  the left-rail "工作台" icon and its panel
+//   - `settings.section`            a page beside 通用设置 in Settings
+//   - `plugins.bundle.config`       this bundle's own page in the plugin list
+// The Plugins tab registration is gone: three seats are enough.
+//
+// Nothing is written until 确认 is pressed: every control edits a local draft
+// and one atomic mutate commits the whole form.
 window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require) => {
 
   var module = { exports: {} };
@@ -29,6 +37,9 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
   // Package name == Loader row id == settings namespace of this bundle.
   var PKG = "dsh-genshin-lisa-notice";
   var ENTRY_ID = PKG;
+  // The rail icon's id and its `main` panel key must be the same value: the
+  // sidebar resolves the panel by the icon's id.
+  var PANEL_ID = "lisa-notice";
   var CUSTOM_OPTION = "__custom__";
 
   // Schema defaults, used only when the served base layer does not carry a
@@ -40,6 +51,11 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
     notificationEnabled: true,
     feishuEnabled: false,
     feishuWebhook: "",
+    feishuBotEnabled: false,
+    feishuAppId: "",
+    feishuAppSecret: "",
+    feishuChatId: "",
+    feishuPollSeconds: 5,
   };
 
   var name = PKG;
@@ -62,10 +78,19 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
     ".dgn-pickName{color:var(--dsw-alias-label-tertiary);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
     ".dgn-select{appearance:auto;font:inherit;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-3);border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:5px 8px;font-size:13px;line-height:1.5;max-width:100%}",
     ".dgn-select:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}",
+    ".dgn-select:disabled{opacity:.5;cursor:not-allowed}",
+    ".dgn-input{display:block;width:100%;max-width:100%;box-sizing:border-box;font:inherit;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-3);border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:5px 8px;font-size:13px;line-height:1.5;margin-top:6px}",
+    ".dgn-input:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}",
+    ".dgn-input:disabled{opacity:.5;cursor:not-allowed}",
     ".dgn-toggles{display:flex;flex-direction:column;gap:10px;padding:8px 0 4px}",
     ".dgn-toggleLabel{display:flex;align-items:center;gap:8px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5;cursor:pointer}",
     ".dgn-toggleLabel input{accent-color:var(--dsw-alias-brand-primary)}",
-    ".dgn-footer{border-top:1px solid var(--dsw-alias-border-l2);justify-content:flex-end;align-items:center;gap:8px;padding:12px 0 8px;display:flex}",
+    ".dgn-choices{display:flex;flex-direction:column;gap:8px;margin-top:8px}",
+    ".dgn-choice{display:flex;align-items:flex-start;gap:8px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5;cursor:pointer}",
+    ".dgn-choice input{margin-top:3px;accent-color:var(--dsw-alias-brand-primary)}",
+    ".dgn-choiceText{min-width:0}",
+    ".dgn-choiceSub{display:block;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:1.5}",
+    ".dgn-footer{border-top:1px solid var(--dsw-alias-border-l2);justify-content:flex-end;align-items:center;gap:8px;padding:12px 0 8px;display:flex;flex-wrap:wrap}",
     ".dgn-message{color:var(--dsw-alias-label-secondary);margin:0;font-size:12px;line-height:1.5;flex:1;min-width:0}",
     ".dgn-btn{appearance:none;font:inherit;cursor:pointer;border:1px solid transparent;border-radius:8px;padding:5px 14px;font-size:13px;line-height:1.5}",
     ".dgn-btn-secondary{border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);background:0 0}",
@@ -73,6 +98,12 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
     ".dgn-btn-primary{background:var(--dsw-alias-label-primary);color:var(--dsw-alias-bg-layer-3)}",
     ".dgn-btn:disabled{opacity:.4;cursor:default}",
     ".dgn-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}",
+    ".dgn-panel{box-sizing:border-box;width:100%;height:100%;overflow:auto;padding:24px 20px 40px;color:var(--dsw-alias-label-primary)}",
+    ".dgn-panelInner{max-width:760px;margin:0 auto}",
+    ".dgn-panelTitle{color:var(--dsw-alias-label-primary);font-size:17px;font-weight:600;line-height:1.4;margin:0 0 4px}",
+    ".dgn-panelSub{color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:1.5;margin:0 0 16px}",
+    ".dgn-section{border-top:1px solid var(--dsw-alias-border-l2);margin-top:12px;padding-top:12px}",
+    ".dgn-sectionTitle{color:var(--dsw-alias-label-primary);font-size:13px;font-weight:600;line-height:1.5;margin:0}",
   ].join("\n");
 
   var CARD_CSS_TAG = "dsh-genshin-lisa-notice/card.css";
@@ -224,9 +255,6 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       return function () { clearInterval(id); };
     }, "dsh-genshin-lisa-notice: alert polling");
 
-    // ── configuration card on the Plugins page ──────────────────────────────
-    // Registered while the host serves this entry, into the bundle-configuration
-    // seat of this bundle's own page (keyed by package name).
     var COMPLETION_INPUT_ID = "dgn-completion-file";
     var INTERACTION_INPUT_ID = "dgn-interaction-file";
 
@@ -234,12 +262,22 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       return error && error.message ? error.message : String(error);
     }
 
-    function LisaNoticeCard(props) {
+    /**
+     * The configuration form, shared by every seat.
+     *
+     * Every control edits `draft` only — a local overlay over the served value —
+     * and 确认 commits the whole overlay in one revision-fenced mutate. Nothing
+     * reaches the host (and therefore nothing changes behaviour) before that.
+     */
+    function LisaNoticeForm(props) {
+      var compact = props && props.compact === true;
       var [snap, setSnap] = react.useState(function () { return form.getSnapshot(); });
       // Staged edits per audio field: { kind:'builtin', key } or { kind:'file', file, name }.
       var [pendingCompletion, setPendingCompletion] = react.useState(null);
       var [pendingInteraction, setPendingInteraction] = react.useState(null);
-      var [webhookDraft, setWebhookDraft] = react.useState(null);
+      // Every other field, staged by key. Text stays raw here and is normalised
+      // on commit, so typing never writes a half-finished value.
+      var [draft, setDraft] = react.useState({});
       var [saving, setSaving] = react.useState(false);
       var [message, setMessage] = react.useState("");
       var [voices, setVoices] = react.useState([]);
@@ -264,8 +302,8 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         return function () { alive = false; };
       }, []);
 
-      if (props.view === "summary") {
-        return react.createElement("span", null, "执行完成 / 等待输入时的语音通知");
+      if (props && props.view === "summary") {
+        return react.createElement("span", null, "执行完成 / 等待输入时的语音与飞书通知");
       }
 
       var value = snap.value !== null && typeof snap.value === "object" ? snap.value : {};
@@ -279,6 +317,22 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         var base = snap.base;
         if (base !== null && typeof base === "object" && Object.prototype.hasOwnProperty.call(base, key)) return base[key];
         return FALLBACK[key];
+      }
+
+      // Draft first, then the served value, then the schema default.
+      function eff(key) {
+        if (Object.prototype.hasOwnProperty.call(draft, key)) return draft[key];
+        if (Object.prototype.hasOwnProperty.call(value, key) && value[key] !== undefined && value[key] !== null) return value[key];
+        return inherited(key);
+      }
+
+      function setField(key, next) {
+        setDraft(function (current) {
+          var merged = Object.assign({}, current);
+          merged[key] = next;
+          return merged;
+        });
+        setMessage("");
       }
 
       function fileName(path) {
@@ -317,6 +371,7 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       function setPending(field, pendingValue) {
         if (field === "completion") setPendingCompletion(pendingValue);
         else setPendingInteraction(pendingValue);
+        setMessage("");
       }
 
       function onSelect(field, sel) {
@@ -334,54 +389,33 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         input.value = "";
       }
 
-      // A toggle stores its value only when it differs from the inherited one;
-      // matching the inherited value clears the override instead.
-      function writeField(key, next) {
-        return next === inherited(key) ? form.unset(key) : form.set(key, next);
+      // ── Feishu channel: one choice, two implementations ───────────────────
+      // The host prefers the assistant bot and only uses the webhook as its
+      // fallback, so offering both as independent switches misrepresented the
+      // behaviour. One radio drives both flags.
+      function channelMode() {
+        if (eff("feishuBotEnabled") === true) return "bot";
+        if (eff("feishuEnabled") === true) return "webhook";
+        return "off";
       }
 
-      function reportWrite(work, done, failPrefix) {
-        setSaving(true);
+      function setChannelMode(mode) {
+        setDraft(function (current) {
+          var merged = Object.assign({}, current);
+          if (mode === "off") {
+            merged.feishuEnabled = false;
+            merged.feishuBotEnabled = false;
+          } else if (mode === "webhook") {
+            merged.feishuEnabled = true;
+            merged.feishuBotEnabled = false;
+          } else {
+            // The assistant is the channel; the webhook stays on as its fallback.
+            merged.feishuBotEnabled = true;
+            merged.feishuEnabled = true;
+          }
+          return merged;
+        });
         setMessage("");
-        work
-          .then(function (ok) {
-            setMessage(ok === false ? "部署未接受该值 / Refused" : done);
-          })
-          .catch(function (error) {
-            setMessage(failPrefix + messageOf(error));
-          })
-          .then(function () { setSaving(false); });
-      }
-
-      function onToggle(key, checked, labels) {
-        reportWrite(writeField(key, checked), checked ? labels[0] : labels[1], "保存失败 / Save failed: ");
-      }
-
-      // Text/number inputs commit on blur: one write per committed value instead
-      // of one per keystroke.
-      function onText(key, value, done) {
-        var next = typeof value === "string" ? value.trim() : value;
-        reportWrite(writeField(key, next), done || "已保存 / Saved", "保存失败 / Save failed: ");
-      }
-
-      function onNumberText(key, raw, done) {
-        var n = Number(String(raw == null ? "" : raw).trim());
-        if (!Number.isFinite(n) || n < 2 || n > 60) {
-          setMessage("间隔需在 2–60 秒之间 / Must be 2–60 seconds");
-          return;
-        }
-        onText(key, n, done);
-      }
-
-      // Credentials commit only when non-empty: tabbing through a field must
-      // never wipe a stored App Secret or chat_id.
-      function onCredentialText(key, raw, done) {
-        var text = String(raw == null ? "" : raw).trim();
-        if (text === "") {
-          setMessage("留空不保存；如需清空请直接编辑 profile 配置 / Empty is ignored");
-          return;
-        }
-        onText(key, text, done);
       }
 
       async function upload(field, file) {
@@ -394,16 +428,54 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         return json;
       }
 
-      // One atomic write for everything staged on this card: revision-fenced,
+      // Normalise one staged text value for the key that carries it.
+      function normalise(key, raw) {
+        if (key === "feishuPollSeconds") {
+          var n = Math.round(Number(String(raw == null ? "" : raw).trim()));
+          if (!Number.isFinite(n) || n < 2 || n > 60) return { error: "回复拉取间隔需在 2–60 秒之间 / Poll interval must be 2–60 seconds" };
+          return { value: n };
+        }
+        return { value: String(raw == null ? "" : raw).trim() };
+      }
+
+      // One atomic write for everything staged on this form: revision-fenced,
       // validated by the host against the full plugin Config.
       function applyStaged() {
+        var ops = [];
+        var failed = null;
+        var keys = Object.keys(draft);
+        for (var i = 0; i < keys.length; i++) {
+          var key = keys[i];
+          var normalised = normalise(key, draft[key]);
+          if (normalised.error) {
+            failed = normalised.error;
+            break;
+          }
+          var next = normalised.value;
+          var prev = inherited(key);
+          if (next === prev) ops.push({ op: "unset", path: [key] });
+          else ops.push({ op: "set", path: [key], value: next });
+        }
+        // Credentials are write-only in practice: an emptied box must not wipe a
+        // stored secret by accident.
+        var credentialKeys = ["feishuAppId", "feishuAppSecret", "feishuChatId"];
+        for (var c = 0; c < credentialKeys.length; c++) {
+          var ck = credentialKeys[c];
+          if (Object.prototype.hasOwnProperty.call(draft, ck) && String(draft[ck]).trim() === "") {
+            ops = ops.filter(function (op) { return op.path[0] !== ck; });
+          }
+        }
+        if (failed !== null) {
+          setMessage(failed);
+          return;
+        }
+
         setSaving(true);
         setMessage("");
-        var ops = [];
-        var pendingByField = { completion: pendingCompletion, interaction: pendingInteraction };
+        var audioPending = { completion: pendingCompletion, interaction: pendingInteraction };
         var work = Promise.resolve();
         ["completion", "interaction"].forEach(function (field) {
-          var p = pendingByField[field];
+          var p = audioPending[field];
           if (!p) return;
           var key = field + "Audio";
           if (p.kind === "builtin") {
@@ -416,10 +488,7 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
               ops.push(json.path === inherited(key) ? { op: "unset", path: [key] } : { op: "set", path: [key], value: json.path });
             });
         });
-        if (webhookDraft !== null) {
-          var text = String(webhookDraft).trim();
-          ops.push(text === String(inherited("feishuWebhook") || "") ? { op: "unset", path: ["feishuWebhook"] } : { op: "set", path: ["feishuWebhook"], value: text });
-        }
+
         work
           .then(function () {
             return ops.length === 0 ? true : form.mutate(ops, snap.revision);
@@ -431,8 +500,8 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
             }
             setPendingCompletion(null);
             setPendingInteraction(null);
-            setWebhookDraft(null);
-            setMessage("已保存 / Saved");
+            setDraft({});
+            setMessage("已保存并生效 / Saved");
           })
           .catch(function (error) {
             setMessage("保存失败 / Save failed: " + messageOf(error));
@@ -443,16 +512,27 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
       function cancel() {
         setPendingCompletion(null);
         setPendingInteraction(null);
-        setWebhookDraft(null);
-        setMessage("");
+        setDraft({});
+        setMessage("已放弃未保存的修改 / Discarded");
       }
 
       function reset() {
-        reportWrite(
-          form.mutate([{ op: "unset", path: ["completionAudio"] }, { op: "unset", path: ["interactionAudio"] }], snap.revision),
-          "已恢复默认 / Reset to default",
-          "恢复失败 / Reset failed: ",
-        );
+        setSaving(true);
+        setMessage("");
+        form.mutate([{ op: "unset", path: ["completionAudio"] }, { op: "unset", path: ["interactionAudio"] }], snap.revision)
+          .then(function (ok) {
+            if (ok === false) {
+              setMessage("部署未接受该值 / Refused");
+              return;
+            }
+            setPendingCompletion(null);
+            setPendingInteraction(null);
+            setMessage("已恢复默认语音 / Reset to default");
+          })
+          .catch(function (error) {
+            setMessage("恢复失败 / Reset failed: " + messageOf(error));
+          })
+          .then(function () { setSaving(false); });
       }
 
       function voiceOptions() {
@@ -537,106 +617,123 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         );
       }
 
-      var hasStaged = (pendingCompletion !== null) || (pendingInteraction !== null) || (webhookDraft !== null);
+      // A labelled text field. `secret` masks the value; the box never renders a
+      // stored secret back, so leaving it alone keeps the stored one.
+      function textField(options) {
+        var key = options.key;
+        var disabled = !writable || saving || options.disabled === true;
+        var current = eff(key);
+        var shown = draft[key] !== undefined ? draft[key] : (options.secret === true ? "" : (current === undefined || current === null ? "" : String(current)));
+        return react.createElement("div", { className: "dgn-field" },
+          react.createElement("div", { className: "dgn-fieldLabel" }, options.label),
+          react.createElement("input", {
+            className: "dgn-input",
+            type: options.type || "text",
+            value: shown,
+            disabled: disabled,
+            autoComplete: "off",
+            spellCheck: false,
+            placeholder: options.placeholder || "",
+            onChange: function (e) { setField(key, e.target.value); },
+          }),
+          options.hint ? react.createElement("p", { className: "dgn-fieldHint" }, options.hint) : null,
+          options.secret === true && draft[key] === undefined
+            ? react.createElement("p", { className: "dgn-fieldHint" }, "已保存的密钥不会回显；留空表示不修改。")
+            : null,
+        );
+      }
+
+      function toggle(key, label) {
+        return react.createElement("label", { className: "dgn-toggleLabel" },
+          react.createElement("input", {
+            type: "checkbox",
+            checked: eff(key) !== false,
+            disabled: !writable || saving,
+            onChange: function (e) { setField(key, e.target.checked); },
+          }),
+          label,
+        );
+      }
+
+      function channelChoice(mode, title, sub) {
+        return react.createElement("label", { className: "dgn-choice" },
+          react.createElement("input", {
+            type: "radio",
+            name: "dgn-feishu-channel-" + (props && props.seat ? props.seat : "form"),
+            checked: channelMode() === mode,
+            disabled: !writable || saving,
+            onChange: function () { setChannelMode(mode); },
+          }),
+          react.createElement("span", { className: "dgn-choiceText" },
+            title,
+            sub ? react.createElement("span", { className: "dgn-choiceSub" }, sub) : null,
+          ),
+        );
+      }
+
+      var mode = channelMode();
+      var hasStaged = Object.keys(draft).length > 0 || pendingCompletion !== null || pendingInteraction !== null;
 
       return react.createElement("div", { className: "dgn-card" },
-        react.createElement("p", { className: "dgn-title" },
+        compact ? null : react.createElement("p", { className: "dgn-title" },
           "Genshin通知提醒",
           overridden ? react.createElement("span", { className: "dgn-badge" }, "已自定义 / customized") : null,
         ),
-        react.createElement("p", { className: "dgn-desc" }, "执行完成 / 等待输入时的语音通知"),
+        compact ? null : react.createElement("p", { className: "dgn-desc" }, "执行完成 / 等待输入时的语音与飞书通知"),
         react.createElement("div", { className: "dgn-body" },
-          audioField("completion", "完成提醒语音", pendingCompletion, COMPLETION_INPUT_ID),
-          audioField("interaction", "交互提醒语音", pendingInteraction, INTERACTION_INPUT_ID),
-          react.createElement("div", { className: "dgn-toggles" },
-            react.createElement("label", { className: "dgn-toggleLabel" },
-              react.createElement("input", {
-                type: "checkbox",
-                checked: value.soundEnabled !== false,
-                disabled: !writable || saving,
-                onChange: function (e) { onToggle("soundEnabled", e.target.checked, ["已开启 / On", "已关闭 / Off"]); },
-              }),
-              "声音提醒",
-            ),
-            react.createElement("label", { className: "dgn-toggleLabel" },
-              react.createElement("input", {
-                type: "checkbox",
-                checked: value.notificationEnabled !== false,
-                disabled: !writable || saving,
-                onChange: function (e) { onToggle("notificationEnabled", e.target.checked, ["已开启 / On", "已关闭 / Off"]); },
-              }),
-              "系统通知",
-            ),
-            react.createElement("label", { className: "dgn-toggleLabel" },
-              react.createElement("input", {
-                type: "checkbox",
-                checked: value.feishuEnabled === true,
-                disabled: !writable || saving,
-                onChange: function (e) { onToggle("feishuEnabled", e.target.checked, ["已开启 / On", "已关闭 / Off"]); },
-              }),
-              "飞书通知",
-            ),
-            react.createElement("label", { className: "dgn-toggleLabel" },
-              react.createElement("input", {
-                type: "checkbox",
-                checked: value.feishuBotEnabled === true,
-                disabled: !writable || saving,
-                onChange: function (e) { onToggle("feishuBotEnabled", e.target.checked, ["助手已开启 / Bot on", "助手已关闭 / Bot off"]); },
-              }),
-              "飞书助手（可回复）",
+          react.createElement("div", { className: "dgn-section" },
+            react.createElement("p", { className: "dgn-sectionTitle" }, "语音提醒"),
+            audioField("completion", "完成提醒语音", pendingCompletion, COMPLETION_INPUT_ID),
+            audioField("interaction", "交互提醒语音", pendingInteraction, INTERACTION_INPUT_ID),
+          ),
+          react.createElement("div", { className: "dgn-section" },
+            react.createElement("p", { className: "dgn-sectionTitle" }, "本机提醒"),
+            react.createElement("div", { className: "dgn-toggles" },
+              toggle("soundEnabled", "声音提醒"),
+              toggle("notificationEnabled", "系统通知"),
             ),
           ),
-          react.createElement("div", { className: "dgn-field" },
-            react.createElement("div", { className: "dgn-fieldLabel" }, "飞书助手凭证"),
+          react.createElement("div", { className: "dgn-section" },
+            react.createElement("p", { className: "dgn-sectionTitle" }, "飞书通道"),
+            react.createElement("p", { className: "dgn-fieldHint" }, "二选一：助手可回复，Webhook 只推送。"),
+            react.createElement("div", { className: "dgn-choices" },
+              channelChoice("off", "关闭", "不发送任何飞书消息"),
+              channelChoice("webhook", "飞书通知（Webhook）", "群自定义机器人，只能单向推送"),
+              channelChoice("bot", "飞书助手（可回复）", "应用机器人发到群，可直接在飞书里回复并回到原会话"),
+            ),
+          ),
+          react.createElement("div", { className: "dgn-section" },
+            react.createElement("p", { className: "dgn-sectionTitle" }, "飞书助手凭证"),
             react.createElement("p", { className: "dgn-fieldHint" },
-              "填应用凭证 + 群 chat_id，并打开上面的「飞书助手」：通知改由机器人发到该群，且**直接回复那条通知**就会把消息送回原会话。",
+              mode === "bot" ? "填写应用机器人凭证与该群 chat_id。" : "选择「飞书助手（可回复）」后才能编辑。",
             ),
-            react.createElement("input", {
-              className: "dgn-select", type: "text", disabled: !writable || saving,
-              defaultValue: String(value.feishuAppId || ""),
-              placeholder: "App ID（cli_ 开头）",
-              onBlur: function (e) { onCredentialText("feishuAppId", e.target.value, "App ID 已保存 / Saved"); },
-              style: { width: "100%", maxWidth: "100%", marginTop: "6px" },
+            textField({
+              key: "feishuAppId", label: "App ID", placeholder: "cli_ 开头",
+              disabled: mode !== "bot",
             }),
-            react.createElement("input", {
-              className: "dgn-select", type: "password", disabled: !writable || saving,
-              defaultValue: String(value.feishuAppSecret || ""),
-              placeholder: "App Secret",
-              onBlur: function (e) { onCredentialText("feishuAppSecret", e.target.value, "App Secret 已保存 / Saved"); },
-              style: { width: "100%", maxWidth: "100%", marginTop: "6px" },
+            textField({
+              key: "feishuAppSecret", label: "App Secret", type: "password", placeholder: "应用密钥",
+              disabled: mode !== "bot", secret: true,
             }),
-            react.createElement("input", {
-              className: "dgn-select", type: "text", disabled: !writable || saving,
-              defaultValue: String(value.feishuChatId || ""),
-              placeholder: "群聊 chat_id（oc_ 开头）",
-              onBlur: function (e) { onCredentialText("feishuChatId", e.target.value, "chat_id 已保存 / Saved"); },
-              style: { width: "100%", maxWidth: "100%", marginTop: "6px" },
+            textField({
+              key: "feishuChatId", label: "群 chat_id", placeholder: "oc_ 开头",
+              disabled: mode !== "bot",
             }),
-            react.createElement("input", {
-              className: "dgn-select", type: "number", min: 2, max: 60, disabled: !writable || saving,
-              defaultValue: String(value.feishuPollSeconds || 5),
-              placeholder: "回复拉取间隔（秒）",
-              onBlur: function (e) { onNumberText("feishuPollSeconds", e.target.value, "拉取间隔已保存 / Saved"); },
-              style: { width: "180px", marginTop: "6px" },
+            textField({
+              key: "feishuPollSeconds", label: "回复拉取间隔（秒）", type: "number", placeholder: "2–60，默认 5",
+              disabled: mode !== "bot",
             }),
           ),
-          react.createElement("div", { className: "dgn-field" },
-            react.createElement("div", { className: "dgn-fieldLabel" }, "飞书 Webhook 地址"),
-            react.createElement("input", {
-              className: "dgn-select",
-              type: "text",
-              disabled: !writable || saving,
-              value: webhookDraft === null ? String(value.feishuWebhook || "") : webhookDraft,
+          react.createElement("div", { className: "dgn-section" },
+            react.createElement("p", { className: "dgn-sectionTitle" }, "飞书 Webhook"),
+            textField({
+              key: "feishuWebhook", label: "Webhook 地址",
               placeholder: "https://open.feishu.cn/open-apis/bot/v2/hook/…",
-              onChange: function (e) { setWebhookDraft(e.target.value); },
-              style: { width: "100%", maxWidth: "100%" },
+              disabled: mode === "off",
+              hint: mode === "bot"
+                ? "可选：助手发送失败时用它兜底。"
+                : "群自定义机器人的地址；开启飞书通知后推送到该群。",
             }),
-            react.createElement("p", { className: "dgn-fieldHint" },
-              "飞书群机器人 · 自定义机器人 Webhook 地址；开启「飞书通知」后，完成/需要输入时会推送到该群。",
-            ),
-          ),
-          react.createElement("p", { className: "dgn-fieldHint" },
-            "下拉选择内置语音；选「自定义音频…」可上传自己的 mp3。点「确认」生效，「恢复默认」回到包内语音。",
           ),
           writable ? null : react.createElement("p", { className: "dgn-fieldHint" },
             snap.status === "unavailable"
@@ -648,43 +745,89 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
           message ? react.createElement("span", { className: "dgn-message" }, message) : null,
           react.createElement("button", {
             className: "dgn-btn dgn-btn-secondary",
+            type: "button",
             disabled: !writable || saving,
             onClick: reset,
-          }, "恢复默认"),
+            title: "把两条提醒语音恢复为包内默认",
+          }, "恢复默认语音"),
           react.createElement("button", {
             className: "dgn-btn dgn-btn-secondary",
+            type: "button",
             disabled: !writable || saving || !hasStaged,
             onClick: cancel,
           }, "取消"),
           react.createElement("button", {
             className: "dgn-btn dgn-btn-primary",
+            type: "button",
             disabled: !writable || saving || !hasStaged,
             onClick: applyStaged,
-          }, "确认"),
+          }, saving ? "保存中…" : "确认"),
         ),
+      );
+    }
+
+    // ── seats ────────────────────────────────────────────────────────────────
+    function LisaNoticeCard(props) {
+      return react.createElement(LisaNoticeForm, { view: props && props.view, seat: "card" });
+    }
+
+    function LisaNoticePanel() {
+      return react.createElement("div", { className: "dgn-panel" },
+        react.createElement("div", { className: "dgn-panelInner" },
+          react.createElement("p", { className: "dgn-panelTitle" }, "Genshin 通知提醒"),
+          react.createElement("p", { className: "dgn-panelSub" }, "语音提醒、浏览器通知与飞书推送（含双向回复）"),
+          react.createElement(LisaNoticeForm, { compact: true, seat: "panel" }),
+        ),
+      );
+    }
+
+    function LisaNoticeSettingsPage() {
+      // The settings shell owns the column's padding and scrolling, so this
+      // renders content only.
+      return react.createElement("div", { className: "dgn-panelInner" },
+        react.createElement("p", { className: "dgn-panelTitle" }, "Genshin 通知提醒"),
+        react.createElement("p", { className: "dgn-panelSub" }, "完成 / 需要输入 / 失败时如何提醒你"),
+        react.createElement(LisaNoticeForm, { compact: true, seat: "settings" }),
+      );
+    }
+
+    // Left-rail icon: stroke-only, drawn at the requested square edge.
+    function LisaNoticeIcon(props) {
+      var size = (props && props.size) || 18;
+      var color = props && props.active ? "var(--dsw-alias-label-primary)" : "currentColor";
+      return react.createElement("svg", {
+        width: size, height: size, viewBox: "0 0 24 24", fill: "none",
+        "aria-hidden": "true", style: { display: "block" },
+      },
+        react.createElement("path", {
+          d: "M12 3.6a5.4 5.4 0 0 0-5.4 5.4v3.1L5.2 15h13.6l-1.4-2.9V9A5.4 5.4 0 0 0 12 3.6Z",
+          stroke: color, strokeWidth: 1.6, strokeLinejoin: "round",
+        }),
+        react.createElement("path", {
+          d: "M9.8 17.6a2.3 2.3 0 0 0 4.4 0",
+          stroke: color, strokeWidth: 1.6, strokeLinecap: "round",
+        }),
       );
     }
 
     // The card exists while the host serves this entry's namespace: a
     // deployment that never mounted the host half shows no trace of it.
-    // Three seats, one per client generation. `slots.inject` waits for a seat
-    // that exists, so only the surfaces this client actually declares mount:
-    //   - `settings.plugins.tab`  a page in the Plugins settings section
-    //   - `plugins.bundle.config` this bundle's page on the plugin manager
-    //   - `settings.plugin.item`  the older plugin-configuration card list
     ctx.effect(function () {
       return ctx.configForms.whileServed([ENTRY_ID], function () {
         var offs = [];
-        var add = function (seat, options) {
+        var add = function (seat, options, component) {
           try {
             offs.push(ctx.slots.inject(seat, function () {
-              return ctx.slots.register(options, LisaNoticeCard);
+              return ctx.slots.register(Object.assign({ registrant: PKG }, options), component);
             }));
           } catch (error) { /* seat unavailable on this client */ }
         };
-        add("settings.plugins.tab", { name: "settings.plugins.tab", id: PKG, order: 40, label: "Genshin通知提醒" });
-        add("plugins.bundle.config", { name: "plugins.bundle.config", key: PKG, order: 30 });
-        add("settings.plugin.item", { name: "settings.plugin.item", key: PKG, order: 30 });
+        // `main` first: the rail validates the panel key against live entries.
+        add("main", { name: "main", key: PANEL_ID }, LisaNoticePanel);
+        add("sidebar.panellist", { name: "sidebar.panellist", id: PANEL_ID, order: 30, label: function () { return "通知提醒"; } }, LisaNoticeIcon);
+        add("settings.section", { name: "settings.section", id: PKG, order: 25, label: function () { return "Genshin 通知提醒"; } }, LisaNoticeSettingsPage);
+        add("plugins.bundle.config", { name: "plugins.bundle.config", key: PKG, order: 30 }, LisaNoticeCard);
+        add("settings.plugin.item", { name: "settings.plugin.item", key: PKG, order: 30 }, LisaNoticeCard);
         return function () {
           for (var i = 0; i < offs.length; i++) {
             try { offs[i](); } catch (error) { /* ignore */ }
