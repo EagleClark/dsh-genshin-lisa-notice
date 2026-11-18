@@ -172,7 +172,10 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
     function playAlert(kind) {
       try {
         var path = kind === "completion" ? COMPLETION_AUDIO_PATH : INTERACTION_AUDIO_PATH;
-        var el = new Audio(pageOrigin() + path);
+        // Cache-buster: the route always serves the current config, but a browser
+        // may reuse a decoded media buffer for an identical URL, which made a
+        // freshly saved voice sound like the previous one.
+        var el = new Audio(pageOrigin() + path + "?v=" + Date.now());
         var p = el.play();
         if (p && typeof p.catch === "function") {
           p.catch(function (error) {
@@ -587,7 +590,7 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         } else if (pendingEdit && pendingEdit.kind === "builtin" && pendingEdit.key) {
           url = pageOrigin() + VOICE_PLAY_PATH + "?key=" + encodeURIComponent(pendingEdit.key);
         } else {
-          url = pageOrigin() + (field === "completion" ? COMPLETION_AUDIO_PATH : INTERACTION_AUDIO_PATH);
+          url = pageOrigin() + (field === "completion" ? COMPLETION_AUDIO_PATH : INTERACTION_AUDIO_PATH) + "?v=" + Date.now();
         }
         try {
           var el = new Audio(url);
