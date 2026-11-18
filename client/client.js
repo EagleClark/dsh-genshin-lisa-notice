@@ -429,8 +429,11 @@ window.__ModuleLoader__.load({ id: "dsh-genshin-lisa-notice", factory: (require)
         return json;
       }
 
-      // Normalise one staged text value for the key that carries it.
+      // Normalise one staged value for the key that carries it. Booleans must stay
+      // booleans: the host validates `feishuEnabled` etc. as `boolean`, and a
+      // stringified "true" is refused there.
       function normalise(key, raw) {
+        if (typeof raw === "boolean") return { value: raw };
         if (key === "feishuPollSeconds") {
           var n = Math.round(Number(String(raw == null ? "" : raw).trim()));
           if (!Number.isFinite(n) || n < 2 || n > 60) return { error: "回复拉取间隔需在 2–60 秒之间 / Poll interval must be 2–60 seconds" };
