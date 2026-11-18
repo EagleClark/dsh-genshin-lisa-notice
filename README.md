@@ -1,12 +1,18 @@
 # dsh-genshin-lisa-notice
 
+## 关于名字 / About the name
+
+插件名叫 `dsh-genshin-lisa-notice`（即 lisa-notice）。**最初只是想用原神·丽莎的语音做个单纯的"执行完成提醒"**，所以按角色名（Lisa）起了名。后来一个版本一个版本地迭代，功能越来越多：加了交互提醒、配置文件、下拉选择内置语音库、自定义音频上传……但**懒得改名字了**，就一直沿用至今。名字里的 `lisa` 更多是个"起源彩蛋"，并不代表现在只支持丽莎这一个语音。
+
+The package is named `dsh-genshin-lisa-notice` (i.e. `lisa-notice`). It **started as a plain "execution-complete reminder" using Genshin Impact Lisa's voice**, named after that character. Over many releases the scope grew — interaction alerts, a settings page, a built-in voice library with a dropdown, custom audio upload — but the name stuck because **renaming it was never worth the churn**. The `lisa` in the name is now more of an origin easter egg than a statement that only Lisa's voice is supported.
+
+---
+
 把 DSH 的「任务完成 / 需要你的输入 / 任务失败」变成**听得见、看得到、还能在飞书里直接回复**的通知。
 
 - 🔊 语音提醒 —— 包内 8 个语音，也可以上传自己的 mp3
 - 🖥 浏览器系统通知 —— 带任务摘要，一次通知一个会话
 - 💬 飞书双向通道 —— 通知发到群，**在飞书里引用回复就能把内容送回原会话**（提问卡片则直接当作答案）
-
-> 名字来源：DLC「萦萦拜托」的报时妖精丽莎，任务做完就会来提醒你一下。
 
 ---
 
