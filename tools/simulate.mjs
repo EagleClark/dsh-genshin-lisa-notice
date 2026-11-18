@@ -155,8 +155,9 @@ const session = { id: SESSION }
 // Give the plugin a task + result to summarise.
 emit('session/event', session, { type: 'user/message', data: { content: [{ type: 'text', text: '帮我把单元测试补上' }] } })
 emit('session/event', session, { type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '已补 12 个用例，全部通过。' }] } } })
-// The model the turn ran on, captured from the request header.
-emit('session/event', session, { type: 'request/header', data: { header: { provider: 'newapi', model: 'deepseek-flash' }, reason: 'model' } })
+// The model the turn ran on, in the real payload shape:
+// `{ header: EpochHeader, reason }` with the call config under `header.config`.
+emit('session/event', session, { type: 'request/header', data: { header: { config: { provider: 'newapi', model: 'deepseek-flash' } }, reason: 'initial' } })
 
 // ── phase 1: completion → card → quote reply → followup ──────────────────────
 emit('agent/turn-stopping', { agent: { id: SESSION } })
