@@ -154,7 +154,25 @@ const session = { id: SESSION }
 
 // Give the plugin a task + result to summarise.
 emit('session/event', session, { type: 'user/message', data: { content: [{ type: 'text', text: '帮我把单元测试补上' }] } })
-// The Harness prepends this block to every turn; it must never become the card's 任务.
+// The skill catalogue arrives the same way; it must not become the task either.
+emit('session/event', session, {
+  type: 'user/message',
+  data: {
+    content: [{
+      type: 'text',
+      text: [
+        '<system-reminder>',
+        'A skill is a reusable set of task-specific instructions. The following skills are available in this session:',
+        '',
+        '<available_skills>',
+        '- `agent-browser`: Browser automation CLI for AI agents. Use when the user needs to interact with websites.',
+        '- `office`: Create, edit, inspect, or convert Office documents, spreadsheets, presentations, and PDFs.',
+        '</available_skills>',
+        '</system-reminder>',
+      ].join('\n'),
+    }],
+  },
+})
 emit('session/event', session, {
   type: 'user/message',
   data: {
@@ -195,8 +213,11 @@ if (cardCall !== undefined) {
   const flat = body.content
   console.log('  receive_id:', body.receive_id, '| msg_type:', body.msg_type, '| schema 2.0:', flat.includes('"schema":"2.0"'))
   console.log('  含任务/结果:', flat.includes('帮我把单元测试补上') && flat.includes('已补 12 个用例'))
-  hasCleanTask = flat.includes('帮我把单元测试补上') && !flat.includes('Current runtime context')
-  console.log('  任务未混入运行时上下文:', hasCleanTask)
+  hasCleanTask = flat.includes('帮我把单元测试补上')
+    && !flat.includes('Current runtime context')
+    && !flat.includes('system-reminder')
+    && !flat.includes('available_skills')
+  console.log('  任务未混入注入内容:', hasCleanTask)
   console.log('  会话标签:', /会话 ([^·"]+·[^·"]+)/.exec(flat) ? RegExp.$1 : '(未找到)')
   hasTitle = flat.includes('"content":"飞书助手配置"')
   console.log('  标题=会话名:', hasTitle)
